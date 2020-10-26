@@ -1,3 +1,6 @@
+# Code is adapted from pyannote.audio. All credit goes to pyannote.audio
+# https://github.com/pyannote/pyannote-audio/tree/master/pyannote/audio/models
+
 import math
 import typing
 import torch
