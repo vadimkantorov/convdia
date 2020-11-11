@@ -1,3 +1,4 @@
+import os
 import json
 import numpy as np
 import soundfile
@@ -5,7 +6,7 @@ import torch
 import models
 
 def read_audio(audio_path, mono = False, dtype = 'float32'):
-	smax = torch.iinfo(torch.int16).max
+	smax = np.iinfo(np.int16).max
 	f2s_numpy = lambda signal, max = np.float32(smax): np.multiply(signal, max).astype('int16')
 	s2f_numpy = lambda signal, max = np.float32(smax): np.divide(signal, max, dtype = 'float32')
 	
@@ -25,25 +26,24 @@ def read_audio(audio_path, mono = False, dtype = 'float32'):
 	return signal, sample_rate_
 
 if __name__ == '__main__':
-	transcript_path = 'subset.json'
 	weights_path = 'emb_voxceleb/train/X.SpeakerDiarization.VoxCeleb.train/weights/0326.pt'
+	transcript_path = '../dia_dataset/diacalls_2020-09-01_2020-10-01.ref.json'
+	output_path = './embeddings'
+	device = 'cuda'
+
+	os.makedirs(output_path, exist_ok = True)
 
 	torch.set_grad_enabled(False)
-	model = models.SincTDNN(tdnn = dict(kernel_size_pool = 21, stride_pool = 3))
+	model = models.SincTDNN(tdnn = dict(kernel_size_pool = 21, stride_pool = 21))
 	
-	model.load_state_dict(torch.load(weights_path))
+	model.load_state_dict(torch.load(weights_path), strict = False)
 	model.eval()
+	model.to(device)
 
-	transcript = json.load(open(transcript_path))
-	#embeddings = open('embeddings.tsv', 'w')
-	#speaker_names = open('speaker_names.tsv', 'w')
-	for i, t in enumerate(transcript):
-		channels, sample_rate = read_audio(t['audio_path'], dtype = 'float32', mono = False)  #(torch.rand(16, 4*1024) - 0.5) * 2
-		features = model(channels)
-		break
-		#embeddings.write('\t'.join(map('{:.02f}'.format, features[0].cpu().clone().tolist())) + '\n')
-		#speaker_names.write(t['speaker_name'] + '\n')
-		print(i, '/', len(transcript))
+	audio_paths = sorted(set(t['audio_path'] for t in json.load(open(transcript_path))))
+	for i, audio_path in enumerate(audio_paths):
+		channels, sample_rate = read_audio(audio_path, dtype = 'float32', mono = True)  #(torch.rand(16, 4*1024) - 0.5) * 2
+		features = model(channels.to(device))[0]
+		torch.save(features.cpu(), os.path.join(output_path, os.path.basename(audio_path) + '.pt'))
+		print(i, '/', len(audio_paths), features.shape)
 
-	#print(waveforms.shape, features.shape)
-	#features.backward(torch.ones_like(features))

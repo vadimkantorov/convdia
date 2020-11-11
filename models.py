@@ -39,10 +39,10 @@ class SincConv1d(torch.nn.Conv1d):
 		self.low_hz_ = nn.Parameter(hz[:-1].unsqueeze(-1))
 		self.band_hz_ = nn.Parameter(ediff1d(hz).unsqueeze(-1))
 
-		self.window = 0.54 - 0.46 * torch.cos(2 * math.pi * torch.linspace(0, kernel_size / 2 - 1, steps=int((kernel_size / 2))) / kernel_size)
+		self.register_buffer('window', 0.54 - 0.46 * torch.cos(2 * math.pi * torch.linspace(0, kernel_size / 2 - 1, steps=int((kernel_size / 2))) / kernel_size))
 		#self.window = torch.hamming_window(kernel_size)[:kernel_size // 2]
 		
-		self.sinct = 2 * math.pi * torch.arange(-(kernel_size // 2), 0, dtype = torch.float32) / sample_rate
+		self.register_buffer('sinct', 2 * math.pi * torch.arange(-(kernel_size // 2), 0, dtype = torch.float32) / sample_rate)
 
 	@property
 	def weight(self):
@@ -128,17 +128,17 @@ class WeightNormConv1dReLU(nn.Module):
 		return x
 
 class MeanStdPool1d(nn.Module):
-	def __init__(self, kernel_size = None, stride = None):
+	def __init__(self, kernel_size = None, stride = None, interpolation_mode = 'nearest'):
 		super().__init__()
 		self.kernel_size = kernel_size
 		self.stride = stride
+		self.interpolation_mode = interpolation_mode
 
 	def forward(self, x):
 		kwargs = dict(kernel_size = self.kernel_size, padding = self.kernel_size // 2, stride = self.stride or 1) if self.kernel_size is not None else {}
 		mean = F.avg_pool1d(x, **kwargs) if kwargs else F.adaptive_avg_pool1d(x, output_size = 1)
-		mean = F.interpolate(mean, x.shape[-1]) if kwargs and kwargs['stride'] != 1 else mean
-
-		zero_mean_squared = (x - mean) ** 2
+		mean_interpolated = F.interpolate(mean, x.shape[-1], mode = self.interpolation_mode) if kwargs and kwargs['stride'] != 1 else mean
+		zero_mean_squared = (x - mean_interpolated) ** 2
 		std_squared = F.avg_pool1d(zero_mean_squared, **kwargs) if kwargs else F.adaptive_avg_pool1d(zero_mean_squared, output_size = 1) 
 		std = std_squared.sqrt()
 		return torch.cat((mean, std), dim = 1)
