@@ -8,15 +8,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class SincTDNN(nn.Module):
-	def __init__(self, sincnet: dict = {}, tdnn: dict = {}):
+	def __init__(self, sincnet: dict = {}, tdnn: dict = {}, padding_same = True):
 		super().__init__()
-		self.sincnet_ = SincNet(**sincnet)
-		self.tdnn_ = XVectorNet(self.sincnet_.out_channels[-1], **tdnn)
+		self.sincnet_ = SincNet(padding_same = padding_same, **sincnet)
+		self.tdnn_ = XVectorNet(self.sincnet_.out_channels[-1], padding_same = padding_same, **tdnn)
 
-	def forward(self, waveforms : torch.Tensor, eps : float = 1e-6):
+	def forward(self, waveforms : torch.Tensor):
 		x = self.sincnet_(waveforms)
 		x = self.tdnn_(x)
-		return x / (x.norm(p = 2, dim = -1, keepdim = True) + eps) 
+		return x
 
 class SincConv1d(torch.nn.Conv1d):
 	def __init__(self, in_channels, out_channels, kernel_size, stride = 1, padding = 0, dilation = 1, groups = 1, bias = False, padding_mode = 'zeros', sample_rate = 16_000, min_low_hz = 50, min_band_hz = 50, low_hz = 30):
@@ -135,18 +135,22 @@ class MeanStdPool1d(nn.Module):
 		self.interpolation_mode = interpolation_mode
 
 	def forward(self, x):
-		kwargs = dict(kernel_size = self.kernel_size, padding = self.kernel_size // 2, stride = self.stride or 1) if self.kernel_size is not None else {}
-		mean = F.avg_pool1d(x, **kwargs) if kwargs else F.adaptive_avg_pool1d(x, output_size = 1)
-		mean_interpolated = F.interpolate(mean, x.shape[-1], mode = self.interpolation_mode) if kwargs and kwargs['stride'] != 1 else mean
-		zero_mean_squared = (x - mean_interpolated) ** 2
-		std_squared = F.avg_pool1d(zero_mean_squared, **kwargs) if kwargs else F.adaptive_avg_pool1d(zero_mean_squared, output_size = 1) 
-		std = std_squared.sqrt()
+		if self.kernel_size is not None:
+			kwargs = dict(kernel_size = self.kernel_size, padding = self.kernel_size // 2, stride = self.stride or 1)
+			mean = F.avg_pool1d(x, **kwargs) 
+			mean_interpolated = F.interpolate(mean, x.shape[-1], mode = self.interpolation_mode) if kwargs and kwargs['stride'] != 1 else mean
+			zero_mean_squared = (x - mean_interpolated) ** 2
+			std_squared = F.avg_pool1d(zero_mean_squared, **kwargs)
+			std = std_squared.sqrt()
+		else:
+			std, mean = torch.std_mean(x, dim = 2, keepdim = True)
+
 		return torch.cat((mean, std), dim = 1)
 
 class XVectorNet(nn.Module):
 	def __init__(self, input_dim: int = 24, embedding_dim: int = 512, hidden_dim_small: int = 512, hidden_dim_large: int = 1500, padding_same: bool = True, kernel_size = [5, 3, 3, 1, 1], dilation = [1, 2, 3, 1, 1], kernel_size_pool: typing.Optional[int] = None, stride_pool: typing.Optional[int] = None):
-		super().__init__()
 		conv_args = lambda k: dict(kernel_size = kernel_size[k], padding = dilation[k] * (kernel_size[k] // 2) if padding_same else 0, dilation = dilation[k], stride = 1)
+		super().__init__()
 		self.tdnn = nn.Sequential(
 			WeightNormConv1dReLU(input_dim,        hidden_dim_small, **conv_args(0)),
 			WeightNormConv1dReLU(hidden_dim_small, hidden_dim_small, **conv_args(1)),
@@ -156,18 +160,10 @@ class XVectorNet(nn.Module):
 		)
 		self.pool = MeanStdPool1d(kernel_size = kernel_size_pool, stride = stride_pool)
 		self.segment6 = nn.Linear(hidden_dim_large * 2, embedding_dim)
-		self.segment7 = nn.Linear(embedding_dim, embedding_dim)
 	
 	def forward(self, x: torch.Tensor):
 		x = self.tdnn(x)
-
 		x = self.pool(x)
-		
-		x = F.conv1d(x, self.segment6.weight.unsqueeze(-1))
-		x = F.relu(x)
-		
-		x = F.conv1d(x, self.segment7.weight.unsqueeze(-1))
-		x = F.relu(x)
-		
+		x = F.conv1d(x, self.segment6.weight.unsqueeze(-1), self.segment6.bias)
 		return x
 
