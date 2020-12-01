@@ -21,7 +21,7 @@ test_sequences, test_cluster_ids = [], []
 input_files = os.listdir(args.speaker_embeddings)
 cutoff = int(len(input_files) * args.fraction_train)
 for i, emb_name in enumerate(input_files):
-	features_TC = torch.load(os.path.join(args.speaker_embeddings, emb_name), 'cpu').t().to(torch.float64)
+	features_TC = F.normalize(torch.load(os.path.join(args.speaker_embeddings, emb_name), 'cpu').t().to(torch.float64), dim = 1)
 	speaker_id = torch.load(os.path.join(args.transcripts, emb_name.replace('.wav.pt', '.pt')), 'cpu')
 	speaker_id = F.interpolate(speaker_id.view(1, 1, -1).to(torch.float32), len(features_TC)).flatten().to(torch.int8)
 	(train_sequences if i < cutoff else test_sequences).append(np.asarray(features_TC))
