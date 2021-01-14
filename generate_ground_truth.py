@@ -15,6 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import audio
 import shapes
+import models
 import vis
 import transcripts
 
@@ -57,10 +58,6 @@ def resize_to_min_size_(*tensors, dim = -1):
 			sliced = t.narrow(dim, 0, size)
 			t.set_(t.storage(), 0, sliced.size(), sliced.stride())
 
-def convert_speaker_id(speaker_id, to_bipole = False, from_bipole = False):
-	k, b = (1 - 3/2, 3 / 2) if from_bipole else (-2, 3) if to_bipole else (None, None)
-	return (speaker_id != 0) * (speaker_id * k + b)
-
 def select_speaker(signal : shapes.BT, kernel_size_smooth_silence : int, kernel_size_smooth_signal : int, kernel_size_smooth_speaker : int, silence_absolute_threshold : float = 0.2, silence_relative_threshold : float = 0.5, eps : float = 1e-9, normalization_percentile = 0.9) -> shapes.T:
 	#TODO: remove bipole processing, smooth every speaker, conditioned on the other speaker
 
@@ -98,7 +95,7 @@ def select_speaker(signal : shapes.BT, kernel_size_smooth_silence : int, kernel_
 	resize_to_min_size_(silence, speaker_id_bipole, dim = -1)
 	
 	silence_flat = silence.all(dim = 0)
-	speaker_id_categorical = convert_speaker_id(speaker_id_bipole, from_bipole = True) * (~silence_flat)
+	speaker_id_categorical = models.convert_speaker_id(speaker_id_bipole, from_bipole = True) * (~silence_flat)
 
 	bipole = torch.tensor([1, -1], dtype = speaker_id_bipole.dtype, device = speaker_id_bipole.device)
 	speaker_id_mask = (~silence) * (speaker_id_bipole.unsqueeze(0) == bipole.unsqueeze(1))
