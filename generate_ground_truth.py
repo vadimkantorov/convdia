@@ -14,11 +14,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import audio
-import models
-import shaping
+import shapes
 import vis
 import transcripts
-
 
 class WebrtcSpeechActivityDetectionModel(nn.Module):
 	def __init__(self, aggressiveness):
@@ -29,7 +27,7 @@ class WebrtcSpeechActivityDetectionModel(nn.Module):
 		assert sample_rate in [8_000, 16_000, 32_000, 48_000] and signal.dtype == torch.int16 and window_size in [0.01, 0.02, 0.03]
 		frame_len = int(window_size * sample_rate)
 		speech = torch.as_tensor([[len(chunk) == frame_len and self.vad.is_speech(bytearray(chunk.numpy()), sample_rate) for chunk in channel.split(frame_len)]	for channel in signal])
-		transcript = [dict(begin = float(begin) * window_size, end = (float(begin) + float(duration)) * window_size, speaker = 1 + channel, speaker_name = transcripts.default_speaker_names[1 + channel], **extra) for channel in range(len(signal)) for begin, duration, mask in zip(*models.rle1d(speech[speaker])) if mask == 1]
+		transcript = [dict(begin = float(begin) * window_size, end = (float(begin) + float(duration)) * window_size, speaker = 1 + channel, speaker_name = transcripts.default_speaker_names[1 + channel], **extra) for channel in range(len(signal)) for begin, duration, mask in zip(*rle1d(speech[speaker])) if mask == 1]
 		return transcript
 
 
@@ -44,7 +42,7 @@ class PyannoteDiarizationModel(nn.Module):
 		transcript = [dict(begin = turn.start, end = turn.end, speaker_name = speaker, **extra) for turn, _, speaker in res.itertracks(yield_label = True)]
 		return transcript
 
-def der(ref_rttm_path, hyp_rttm_path, metric = None):
+def pyannote_der(ref_rttm_path, hyp_rttm_path, metric = None):
 	import pyannote.database.util 
 	import pyannote.metrics.diarization
 	metric = metric if metric is not None else pyannote.metrics.diarization.DiarizationErrorRate()
@@ -63,7 +61,7 @@ def convert_speaker_id(speaker_id, to_bipole = False, from_bipole = False):
 	k, b = (1 - 3/2, 3 / 2) if from_bipole else (-2, 3) if to_bipole else (None, None)
 	return (speaker_id != 0) * (speaker_id * k + b)
 
-def select_speaker(signal : shaping.BT, kernel_size_smooth_silence : int, kernel_size_smooth_signal : int, kernel_size_smooth_speaker : int, silence_absolute_threshold : float = 0.2, silence_relative_threshold : float = 0.5, eps : float = 1e-9, normalization_percentile = 0.9) -> shaping.T:
+def select_speaker(signal : shapes.BT, kernel_size_smooth_silence : int, kernel_size_smooth_signal : int, kernel_size_smooth_speaker : int, silence_absolute_threshold : float = 0.2, silence_relative_threshold : float = 0.5, eps : float = 1e-9, normalization_percentile = 0.9) -> shapes.T:
 	#TODO: remove bipole processing, smooth every speaker, conditioned on the other speaker
 
 	assert len(signal) == 2
@@ -123,12 +121,12 @@ def ref(input_path, output_path, sample_rate, window_size, device, max_duration,
 
 		speaker_id_ref, speaker_id_ref_ = select_speaker(signal.to(device), silence_absolute_threshold = 0.05, silence_relative_threshold = 0.2, kernel_size_smooth_signal = 128, kernel_size_smooth_speaker = 4096, kernel_size_smooth_silence = 4096)
 
-		transcript = [dict(audio_path = audio_path, begin = float(begin) / sample_rate, end = (float(begin) + float(duration)) / sample_rate, speaker = speaker, speaker_name = transcripts.default_speaker_names[speaker]) for speaker in range(1, len(speaker_id_ref_)) for begin, duration, mask in zip(*models.rle1d(speaker_id_ref_[speaker])) if mask == 1]
+		transcript = [dict(audio_path = audio_path, begin = float(begin) / sample_rate, end = (float(begin) + float(duration)) / sample_rate, speaker = speaker, speaker_name = transcripts.default_speaker_names[speaker]) for speaker in range(1, len(speaker_id_ref_)) for begin, duration, mask in zip(*rle1d(speaker_id_ref_[speaker])) if mask == 1]
 
 		if not transcript or len({t['speaker_name'] for t in transcript}) == 1:
 			continue
 		
-		#transcript = [dict(audio_path = audio_path, begin = float(begin) / sample_rate, end = (float(begin) + float(duration)) / sample_rate, speaker_name = str(int(speaker)), speaker = int(speaker)) for begin, duration, speaker in zip(*models.rle1d(speaker_id_ref.cpu()))]
+		#transcript = [dict(audio_path = audio_path, begin = float(begin) / sample_rate, end = (float(begin) + float(duration)) / sample_rate, speaker_name = str(int(speaker)), speaker = int(speaker)) for begin, duration, speaker in zip(*rle1d(speaker_id_ref.cpu()))]
 
 		transcript_without_speaker_missing = [t for t in transcript if t['speaker'] != transcripts.speaker_missing]
 		transcripts.save(transcript_path, transcript_without_speaker_missing)
@@ -208,7 +206,7 @@ def speaker_error(ref, hyp, num_speakers, sample_rate = 8000, hyp_speaker_mappin
 		
 def eval(ref, hyp, html, debug_audio, sample_rate = 100):
 	if os.path.isfile(ref) and os.path.isfile(hyp):
-		print(der(ref_rttm_path = ref, hyp_rttm_path = hyp))
+		print(pyannote_der(ref_rttm_path = ref, hyp_rttm_path = hyp))
 
 	elif os.path.isdir(ref) and os.path.isdir(hyp):
 		errs = []
@@ -224,7 +222,7 @@ def eval(ref, hyp, html, debug_audio, sample_rate = 100):
 			ref_transcript, hyp_transcript = map(transcripts.load, [ref_rttm_path, hyp_rttm_path])
 			ser_err, hyp_perm = speaker_error(ref = ref_transcript, hyp = hyp_transcript, num_speakers = 2, sample_rate = sample_rate, ignore_silence_and_overlapped_speech = True)
 			der_err, *_ = speaker_error(ref = ref_transcript, hyp = hyp_transcript, num_speakers = 2, sample_rate = sample_rate, ignore_silence_and_overlapped_speech = False)
-			der_err_ = der(ref_rttm_path = ref_rttm_path, hyp_rttm_path = hyp_rttm_path)
+			der_err_ = pyannote_der(ref_rttm_path = ref_rttm_path, hyp_rttm_path = hyp_rttm_path)
 			transcripts.remap_speaker(hyp_transcript, hyp_perm)
 
 			err = dict(
@@ -247,6 +245,16 @@ def eval(ref, hyp, html, debug_audio, sample_rate = 100):
 		
 		if html:
 			print(vis.diarization(sorted(diarization_transcript, key = lambda t: t['ser'], reverse = True), html, debug_audio))
+
+def rle1d(tensor):
+	#_notspeech_ = ~F.pad(speech, [1, 1])
+	#channel_i_channel_j = torch.cat([(speech & _notspeech_[..., :-2]).nonzero(), (speech & _notspeech_[..., 2:]).nonzero()], dim = -1)
+	#return [dict(begin = i / sample_rate, end = j / sample_rate, channel = channel) for channel, i, _, j in channel_i_channel_j.tolist()]
+	
+	assert tensor.ndim == 1
+	starts = torch.cat(( torch.tensor([0], dtype = torch.long, device = tensor.device), (tensor[1:] != tensor[:-1]).nonzero(as_tuple = False).add_(1).squeeze(1), torch.tensor([tensor.shape[-1]], dtype = torch.long, device = tensor.device)))
+	starts, lengths, values = starts[:-1], (starts[1:] - starts[:-1]), tensor[starts[:-1]]
+	return starts, lengths, values
 
 
 if __name__ == '__main__':
