@@ -37,9 +37,10 @@ if __name__ == '__main__':
 	audio_paths = sorted({t['audio_path'] for t in transcript})
 	
 	for i, audio_path in enumerate(audio_paths):
+		audio_path = '_ES2004a.Mix-Headset.wav'
 		channels, _ = audio.read_audio(audio_path, sample_rate = args.sample_rate, dtype = 'float32', mono = True, __array_wrap__ = torch.as_tensor)
 		features = model(channels.to(args.device), args.sample_rate)[0]
 
 		torch.save(features.cpu(), os.path.join(args.output_path, os.path.basename(audio_path) + '.pt'))
 		print(i, '/', len(audio_paths), features.shape, audio_path)
-		break;
+		break

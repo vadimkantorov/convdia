@@ -3,11 +3,32 @@
 
 import math
 import functools
+import itertools
 import operator
 import typing
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+def normalized_symmetric_laplacian(W):
+	# https://en.wikipedia.org/wiki/Laplacian_matrix#Symmetric_normalized_Laplacian
+	D_sqrt = W.sum(dim = -1).sqrt()
+	return torch.eye(W.shape[-1], device = W.device, dtype = W.dtype) - W / D_sqrt.unsqueeze(-1) / D_sqrt.unsqueeze(-2)
+
+def pdist(A, squared = False, eps = 1e-4):
+    normAsq = A.pow(2).sum(dim = -1, keepdim = True)
+    res = torch.addmm(normAsq.transpose(-2, -1), A, A.transpose(-2, -1), alpha = -2).add_(normAsq)
+    return res.clamp_(min = 0) if squared else res.clamp_(min = eps).sqrt_()
+
+def shrink(tensor, min):
+	return torch.where(tensor >= min, tensor, torch.zeros_like(tensor))
+
+def acf(K):
+    arange = torch.arange(len(K), device = K.device)
+    Z = (arange.unsqueeze(-1) - arange.unsqueeze(-2)).abs()
+    ACF = torch.zeros_like(arange, dtype = K.dtype).scatter_add_(0, Z.flatten(), K.flatten()).div_(Z.flatten().bincount(minlength = len(arange)))   
+    M = ACF[Z.flatten()].view_as(Z)
+    return ACF, M
 
 def gaussian_kernel(kernel_size, sigma):
     kernel = 1
@@ -32,13 +53,13 @@ def wang_affinity(E, gaussian_kernel_size = 9, gaussian_sigma = 1.0, row_thresho
 	# Speaker Diarization with LSTM, Wang et al, https://arxiv.org/abs/1710.10468
 	# https://github.com/wq2012/SpectralCluster/blob/master/spectralcluster/spectral_clusterer.py
 	A = cosine_kernel(E)
-	return A
-	# crop diagonal
+	
+	# crop diagonalw
 	A.fill_diagonal_(0)
 	A.diagonal().copy_(A.max(dim = 1).values)
 
 	## gaussian blur
-	A = F.conv2d(A[None, None, ...], gaussian_kernel([gaussian_kernel_size] * 2, [gaussian_sigma] * 2).type_as(A))[0, 0, ...]
+	#A = F.conv2d(A[None, None, ...], gaussian_kernel([gaussian_kernel_size] * 2, [gaussian_sigma] * 2).type_as(A))[0, 0, ...]
 
 	# row-wise shrinking
 	A = torch.where(A > row_threshold * A.max(dim = 1, keepdim = True).values, A, shrinking * A)
@@ -47,14 +68,16 @@ def wang_affinity(E, gaussian_kernel_size = 9, gaussian_sigma = 1.0, row_thresho
 	A = torch.max(A, A.t())
 
 	# diffusion
-	#A = A @ A
+	A = A @ A
 
 	# row-wise normalization
-	#A = A / A.max(dim = 1, keepdim = True).values
+	A = A / A.max(dim = 1, keepdim = True).values
+	A = torch.max(A, A.t())
 
 	return A
 
 def kmeans(E, k = 5, num_iter = 10):
+	torch.manual_seed(1)
 	centroids = E[torch.randperm(len(E), device = E.device)[:k]]
 	for i in range(num_iter):
 		assignment = cdist(E, centroids, squared = True).argmin(dim = 1)
@@ -62,11 +85,30 @@ def kmeans(E, k = 5, num_iter = 10):
 		centroids /= assignment.bincount(minlength = k).unsqueeze(-1)
 	return assignment
 	
-def spectral_clustering(K, e = 10, k = 5, **kwargs):
-	eigvals, eigvecs = K.symeig(eigenvectors = True)
-	E = eigvecs[:, -e - 1:-1].flip(dims = (1, ))
+def spectral_clustering(L, e = 10, k = 5, **kwargs):
+	eigvals, eigvecs = L.symeig(eigenvectors = True)
+	print(eigvals[:20])
+	#E = eigvecs[:, 1 : 1 + e]
+	E = eigvecs[:, -e -1 : -1].flip(dims = (1,))
 	assignment = kmeans(E, k = k, **kwargs)
 	return assignment, E
+
+
+
+
+#################################################################################
+
+
+
+
+
+def reassign_speaker_id(speaker_id, targets):
+	perm = min((float((torch.tensor(perm)[speaker_id] - targets).abs().sum()), perm) for perm in itertools.permutations([0, 1, 2]))[1]
+	return torch.tensor(perm)[speaker_id]
+
+def convert_speaker_id(speaker_id, to_bipole = False, from_bipole = False):
+	k, b = (1 - 3/2, 3 / 2) if from_bipole else (-2, 3) if to_bipole else (None, None)
+	return (speaker_id != 0) * (speaker_id * k + b)
 
 class SincTDNN(nn.Module):
 	def __init__(self, sample_rate : int, sincnet: dict = {}, tdnn: dict = {}, padding_same : bool = True):
