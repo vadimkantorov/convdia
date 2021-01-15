@@ -5,3 +5,6 @@ class BT(torch.Tensor):
 
 class T(torch.Tensor):
 	pass
+
+class BCt(torch.Tensor):
+	pass
