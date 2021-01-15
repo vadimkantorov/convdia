@@ -10,10 +10,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def convert_speaker_id(speaker_id, to_bipole = False, from_bipole = False):
-	k, b = (1 - 3/2, 3 / 2) if from_bipole else (-2, 3) if to_bipole else (None, None)
-	return (speaker_id != 0) * (speaker_id * k + b)
-
 def normalized_symmetric_laplacian(W):
 	# https://en.wikipedia.org/wiki/Laplacian_matrix#Symmetric_normalized_Laplacian
 	D_sqrt = W.sum(dim = -1).sqrt()
