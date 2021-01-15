@@ -10,6 +10,27 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+def rle1d(tensor):
+	#_notspeech_ = ~F.pad(speech, [1, 1])
+	#channel_i_channel_j = torch.cat([(speech & _notspeech_[..., :-2]).nonzero(), (speech & _notspeech_[..., 2:]).nonzero()], dim = -1)
+	#return [dict(begin = i / sample_rate, end = j / sample_rate, channel = channel) for channel, i, _, j in channel_i_channel_j.tolist()]
+	
+	assert tensor.ndim == 1
+	starts = torch.cat(( torch.tensor([0], dtype = torch.long, device = tensor.device), (tensor[1:] != tensor[:-1]).nonzero(as_tuple = False).add_(1).squeeze(1), torch.tensor([tensor.shape[-1]], dtype = torch.long, device = tensor.device)))
+	starts, lengths, values = starts[:-1], (starts[1:] - starts[:-1]), tensor[starts[:-1]]
+	return starts, lengths, values
+
+class PyannoteDiarizationModel(nn.Module):
+	def __init__(self, **kwargs):
+		super().__init__()
+		self.pipeline = torch.hub.load('pyannote/pyannote-audio', 'dia', **kwargs)
+
+	def forward(self, signal, sample_rate, extra = {}):
+		assert sample_rate == 16_000
+		res = self.pipeline(dict(waveform = signal.t().numpy(), sample_rate = sample_rate))
+		transcript = [dict(begin = turn.start, end = turn.end, speaker_name = speaker, **extra) for turn, _, speaker in res.itertracks(yield_label = True)]
+		return transcript
+
 def normalized_symmetric_laplacian(W):
 	# https://en.wikipedia.org/wiki/Laplacian_matrix#Symmetric_normalized_Laplacian
 	D_sqrt = W.sum(dim = -1).sqrt()

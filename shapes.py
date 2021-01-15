@@ -1,10 +1,8 @@
+import typing
 import torch
 
-class BT(torch.Tensor):
-	pass
+BT = typing.NewType('BT', torch.Tensor)
 
-class T(torch.Tensor):
-	pass
+T = typing.NewType('T', torch.Tensor)
 
-class BCt(torch.Tensor):
-	pass
+BCt = typing.NewType('BCt', torch.Tensor)
