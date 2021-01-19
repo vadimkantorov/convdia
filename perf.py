@@ -1,4 +1,6 @@
 import torch
+import transcripts
+import vis
 
 def speaker_mask(transcript, num_speakers, duration, sample_rate):
 	mask = torch.zeros(1 + num_speakers, int(duration * sample_rate), dtype = torch.bool)
@@ -42,3 +44,60 @@ def pyannote_der(ref_rttm_path, hyp_rttm_path, metric = None):
 	ref, hyp = map(pyannote.database.util.load_rttm, [ref_rttm_path, hyp_rttm_path])
 	ref, hyp = [next(iter(anno.values())) for anno in [ref, hyp]]
 	return metric(ref, hyp)
+		
+def eval(ref, hyp, html, debug_audio, sample_rate = 100):
+	if os.path.isfile(ref) and os.path.isfile(hyp):
+		print(pyannote_der(ref_rttm_path = ref, hyp_rttm_path = hyp))
+
+	elif os.path.isdir(ref) and os.path.isdir(hyp):
+		errs = []
+		diarization_transcript = []
+		for rttm in os.listdir(ref):
+			if not rttm.endswith('.rttm'):
+				continue
+
+			print(rttm)
+			audio_path = transcripts.load(os.path.join(hyp, rttm).replace('.rttm', '.json'))[0]['audio_path']
+
+			ref_rttm_path, hyp_rttm_path = os.path.join(ref, rttm), os.path.join(hyp, rttm)
+			ref_transcript, hyp_transcript = map(transcripts.load, [ref_rttm_path, hyp_rttm_path])
+			ser_err, hyp_perm = speaker_error(ref = ref_transcript, hyp = hyp_transcript, num_speakers = 2, sample_rate = sample_rate, ignore_silence_and_overlapped_speech = True)
+			der_err, *_ = speaker_error(ref = ref_transcript, hyp = hyp_transcript, num_speakers = 2, sample_rate = sample_rate, ignore_silence_and_overlapped_speech = False)
+			der_err_ = pyannote_der(ref_rttm_path = ref_rttm_path, hyp_rttm_path = hyp_rttm_path)
+			transcripts.remap_speaker(hyp_transcript, hyp_perm)
+
+			err = dict(
+				ser = ser_err,
+				der = der_err,
+				der_ = der_err_
+			)
+			diarization_transcript.append(dict(
+				audio_path = audio_path,
+				audio_name = transcripts.audio_name(audio_path),
+				ref = ref_transcript, 
+				hyp = hyp_transcript,
+				**err
+			))
+			print(rttm, '{ser:.2f}, {der:.2f} | {der_:.2f}'.format(**err))
+			print()
+			errs.append(err)
+		print('===')
+		print({k : sum(e) / len(e) for k in errs[0] for e in [[err[k] for err in errs]]})
+		
+		if html:
+			print(vis.diarization(sorted(diarization_transcript, key = lambda t: t['ser'], reverse = True), html, debug_audio))
+
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser()
+	subparsers = parser.add_subparsers()
+	
+	cmd = subparsers.add_parser('eval')
+	cmd.add_argument('--ref', required = True)
+	cmd.add_argument('--hyp', required = True)
+	cmd.add_argument('--html', default = 'data/diarization.html')
+	cmd.add_argument('--audio', dest = 'debug_audio', action = 'store_true')
+	cmd.set_defaults(func = eval)
+
+	args = vars(parser.parse_args())
+	func = args.pop('func')
+	func(**args)

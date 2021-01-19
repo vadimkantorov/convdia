@@ -1,3 +1,4 @@
+import models
 import audio
 
 time_missing = -1
@@ -5,6 +6,11 @@ speaker_missing = 0
 
 default_speaker_names = '_' + ''.join(chr(ord('A') + i) for i in range(26))
 default_channel_names = {channel_missing : 'channel_', 0 : 'channel0', 1 : 'channel1'}
+
+def from_speaker_mask(speaker_mask, sample_rate, **extra):
+	# speaker_missing assumed 0 if t['speaker'] != transcripts.speaker_missing
+	#transcript = [dict(audio_path = audio_path, begin = float(begin) / sample_rate, end = (float(begin) + float(duration)) / sample_rate, speaker_name = str(int(speaker)), speaker = int(speaker)) for begin, duration, speaker in zip(*rle1d(speaker_id_ref.cpu()))]
+	return [dict(begin = float(begin) / sample_rate, end = (float(begin) + float(duration)) / sample_rate, speaker = speaker, speaker_name = default_speaker_names[speaker], **extra) for speaker in range(1, len(speaker_mask)) for begin, duration, mask in zip(*models.rle1d(speaker_mask[speaker])) if mask == 1]
 
 def summary(transcript, ij = False):
 	res = dict(
@@ -72,10 +78,8 @@ def take_between(transcript, ind_last_taken, t, first, last, sort_by_time = True
 
 def save(data_path, transcript):
 	with open(data_path, 'w') as f:
-
 		if data_path.endswith('.json'):
 			json.dump(transcript, f, ensure_ascii = False, sort_keys = True, indent = 2)
-
 		elif data_path.endswith('.rttm'):
 			f.writelines('SPEAKER {audio_name} 1 {begin:.3f} {duration:.3f} <NA> <NA> {speaker} <NA> <NA>\n'.format(audio_name = audio_name(t), begin = t['begin'], duration = compute_duration(t), speaker = t['speaker']) for t in transcript if t['speaker'] != speaker_missing)
 
@@ -84,23 +88,11 @@ def save(data_path, transcript):
 def load(data_path):
 	assert os.path.exists(data_path)
 
-	if data_path.endswith('.rttm'):
-		with open(data_path) as f:
+	with open(data_path) as f:
+		if data_path.endswith('.json'):
+			transcript = json.load(f)
+		else data_path.endswith('.rttm'):
 			transcript = [dict(audio_name = splitted[1], begin = float(splitted[3]), end = float(splitted[3]) + float(splitted[4]), speaker_name = splitted[7]) for splitted in map(str.split, f)]
-
-	elif data_path.endswith('.json') or data_path.endswith('.json.gz'):
-		with open_maybe_gz(data_path) as f:
-			transcript = json.load(f)
-
-	elif os.path.exists(data_path + '.json'):
-		with open(data_path + '.json') as f:
-			transcript = json.load(f)
-			for t in transcript:
-				t['audio_path'] = data_path
-	else:
-		transcript = [dict(audio_path = data_path)]
 
 	return transcript
 
-def open_maybe_gz(data_path, mode = 'r'):
-	return gzip.open(data_path, mode + 't') if data_path.endswith('.gz') else open(data_path, mode)

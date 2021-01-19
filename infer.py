@@ -3,6 +3,7 @@ import torch
 import models
 import shapes
 import audio
+import transcripts
 
 def main(args):
 	# loading model
@@ -33,13 +34,21 @@ def main(args):
 	fiedler_vector = eigvecs[:, 0] / eigvecs_max
 	print('fiedler_vector', fiedler_vector.shape)
 
-	
+	silence = torch.zeros_like(fiedler_vector, dtype = torch.bool)
+	speaker1 = fiedler_vector < 0
+	speaker2 = fiedler_vector > 0
+
+	speaker_mask = torch.stack([silence, speaker1, speaker2])
+
+	# save transcript
+	transcript = transcripts.from_speaker_mask(speaker_mask, sample_rate)
+	print(transcripts.save(args.transcript_path, transcript))
 	
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--audio-path', '-i')
-	parser.add_argument('--output-path', '-o')
+	parser.add_argument('--transcript-path', '-o')
 	parser.add_argument('--weights-path', default = 'emb_voxceleb/train/X.SpeakerDiarization.VoxCeleb.train/weights/0326.pt')
 	parser.add_argument('--device', default = 'cuda')
 	parser.add_argument('--sample-rate', type = int, default = 16_000)
