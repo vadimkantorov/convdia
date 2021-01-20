@@ -1,7 +1,10 @@
+import os
+import json
 import models
 import audio
 
 time_missing = -1
+channel_missing = -1
 speaker_missing = 0
 
 default_speaker_names = '_' + ''.join(chr(ord('A') + i) for i in range(26))
@@ -52,6 +55,9 @@ def segment_by_time(transcript, max_segment_seconds, break_on_speaker_change = T
 			if transcript_segment:
 				yield transcript_segment
 
+def sort_key(t):
+	return t.get('audio_path'), t.get('begin'), t.get('end'), t.get('channel')
+
 def take_between(transcript, ind_last_taken, t, first, last, sort_by_time = True, soft = True, set_speaker = False):
 	if sort_by_time:
 		lt = lambda a, b: a['end'] < b['begin']
@@ -76,6 +82,9 @@ def take_between(transcript, ind_last_taken, t, first, last, sort_by_time = True
 
 	return ind_last_taken[-1], list(transcript)
 
+def audio_name(t):
+	return (t.get('audio_name') or os.path.basename(t['audio_path'])) if isinstance(t, dict) else os.path.basename(t)
+
 def save(data_path, transcript):
 	with open(data_path, 'w') as f:
 		if data_path.endswith('.json'):
@@ -91,7 +100,7 @@ def load(data_path):
 	with open(data_path) as f:
 		if data_path.endswith('.json'):
 			transcript = json.load(f)
-		else data_path.endswith('.rttm'):
+		elif data_path.endswith('.rttm'):
 			transcript = [dict(audio_name = splitted[1], begin = float(splitted[3]), end = float(splitted[3]) + float(splitted[4]), speaker_name = splitted[7]) for splitted in map(str.split, f)]
 
 	return transcript
