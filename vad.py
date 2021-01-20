@@ -1,4 +1,8 @@
 import shapes
+import torch
+import models
+import transcripts
+import torch.nn.functional as F
 
 def select_speaker(signal : shapes.BT, kernel_size_smooth_silence : int, kernel_size_smooth_signal : int, kernel_size_smooth_speaker : int, silence_absolute_threshold : float = 0.2, silence_relative_threshold : float = 0.5, eps : float = 1e-9, normalization_percentile = 0.9) -> shapes.T:
 	#TODO: remove bipole processing, smooth every speaker, conditioned on the other speaker
@@ -53,7 +57,7 @@ def resize_to_min_size_(*tensors, dim = -1):
 			sliced = t.narrow(dim, 0, size)
 			t.set_(t.storage(), 0, sliced.size(), sliced.stride())
 
-class WebrtcSpeechActivityDetectionModel(nn.Module):
+class WebrtcSpeechActivityDetectionModel(torch.nn.Module):
 	def __init__(self, aggressiveness):
 		import webrtcvad
 		self.vad = webrtcvad.Vad(aggressiveness)
@@ -62,5 +66,5 @@ class WebrtcSpeechActivityDetectionModel(nn.Module):
 		assert sample_rate in [8_000, 16_000, 32_000, 48_000] and signal.dtype == torch.int16 and window_size in [0.01, 0.02, 0.03]
 		frame_len = int(window_size * sample_rate)
 		speech = torch.as_tensor([[len(chunk) == frame_len and self.vad.is_speech(bytearray(chunk.numpy()), sample_rate) for chunk in channel.split(frame_len)]	for channel in signal])
-		transcript = [dict(begin = float(begin) * window_size, end = (float(begin) + float(duration)) * window_size, speaker = 1 + channel, speaker_name = transcripts.default_speaker_names[1 + channel], **extra) for channel in range(len(signal)) for begin, duration, mask in zip(*rle1d(speech[speaker])) if mask == 1]
+		transcript = [dict(begin = float(begin) * window_size, end = (float(begin) + float(duration)) * window_size, speaker = 1 + channel, speaker_name = transcripts.default_speaker_names[1 + channel], **extra) for channel in range(len(signal)) for begin, duration, mask in zip(*models.rle1d(speech[channel+1])) if mask == 1]
 		return transcript

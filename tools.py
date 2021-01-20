@@ -31,9 +31,9 @@ def genref(input_path, output_path, sample_rate, window_size, device, max_durati
 		transcript_path = os.path.join(output_path, noextname + '.json')
 		rttm_path = os.path.join(output_path, noextname + '.rttm')
 
-		signal, sample_rate = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = 'float32', duration = max_duration)
+		signal, sample_rate = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = 'float32', __array_wrap__ = torch.tensor)
 		speaker_id_ref, speaker_id_ref_ = vad.select_speaker(signal.to(device), silence_absolute_threshold = 0.05, silence_relative_threshold = 0.2, kernel_size_smooth_signal = 128, kernel_size_smooth_speaker = 4096, kernel_size_smooth_silence = 4096)
-		transcript = transcripts.from_speaker_mask(speaker_id_ref_, sample_rate)
+		transcript = transcripts.from_speaker_mask(speaker_id_ref_, sample_rate, audio_path = audio_path)
 		if not transcript or len({t['speaker_name'] for t in transcript}) == 1:
 			continue
 		transcript = [t for t in transcript if t['speaker'] != transcripts.speaker_missing]
@@ -43,9 +43,10 @@ def genref(input_path, output_path, sample_rate, window_size, device, max_durati
 		print(transcripts.save(rttm_path, transcript))
 		
 		if debug_audio:
-			print(audio.write_audio(transcript_path + '.wav', torch.cat([signal[..., :speaker_id_ref.shape[-1]], convert_speaker_id(speaker_id_ref[..., :signal.shape[-1]], to_bipole = True).unsqueeze(0).cpu() * 0.5, speaker_id_ref_[..., :signal.shape[-1]].cpu() * 0.5]), sample_rate, mono = False))
+			debug_signal = torch.cat([signal[..., :speaker_id_ref.shape[-1]], models.convert_speaker_id(speaker_id_ref[..., :signal.shape[-1]], to_bipole = True).unsqueeze(0).cpu() * 0.5, speaker_id_ref_[..., :signal.shape[-1]].cpu() * 0.5]).T
+			print(audio.write_audio(transcript_path + '.wav', debug_signal, sample_rate, mono = False))
 		if html:
-			print(vis.transcript(os.path.join(output_path, audio_name + '.html'), sample_rate = sample_rate, mono = True, transcript = transcript, duration = max_duration))
+			print(vis.diarization(transcript, os.path.join(output_path, audio_name + '.html'), debug_audio=True))
 
 def genhyppyannote(input_path, output_path, device, batch_size, html, ext, sample_rate, max_duration):
 	os.makedirs(output_path, exist_ok = True)
@@ -87,7 +88,7 @@ if __name__ == '__main__':
 	cmd.add_argument('--audio', dest = 'debug_audio', action = 'store_true')
 	cmd.add_argument('--html', action = 'store_true')
 	cmd.add_argument('--ext', default = '.mp3')
-	cmd.set_defaults(func = ref)
+	cmd.set_defaults(func = genref)
 
 	cmd = subparsers.add_parser('genhyppyannote')
 	cmd.add_argument('--device', default = 'cuda')
@@ -98,7 +99,7 @@ if __name__ == '__main__':
 	cmd.add_argument('--html', action = 'store_true')
 	cmd.add_argument('--ext', default = '.mp3.wav')
 	cmd.add_argument('--max-duration', type = float)
-	cmd.set_defaults(func = hyp)
+	cmd.set_defaults(func = genhyppyannote)
 
 	args = vars(parser.parse_args())
 	func = args.pop('func')
