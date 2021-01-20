@@ -94,7 +94,7 @@ def diarization(diarization_transcript, html_path, debug_audio):
 			avg_der_ = avg([dt['der_'] for dt in diarization_transcript]) if all('der_' in dt for dt in diarization_transcript) else -1.0
 		))
 		for i, dt in enumerate(diarization_transcript):
-			audio_html = fmt_audio(dt['audio_path']) if debug_audio else ''
+			audio_html = fmt_audio(dt['audio_path'], channel = i) if debug_audio else ''
 			begin, end = 0.0, transcripts.compute_duration(dt)
 			for refhyp in ['ref', 'hyp']:
 				if refhyp in dt:
