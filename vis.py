@@ -89,15 +89,16 @@ def diarization(diarization_transcript, html_path, debug_audio):
 		html.write('<tr class="border-hyp"><td>{num_files}</td><td>{total_duration:.02f}</td><td>avg</td><td>{avg_ser:.02f}</td><td>{avg_der:.02f}</td><td>{avg_der_:.02f}</td><td></td><td></td></tr>\n'.format(
 			num_files = len(diarization_transcript),
 			total_duration = sum(map(transcripts.compute_duration, diarization_transcript)),
-			avg_ser = avg([t['ser'] for t in diarization_transcript]),
-			avg_der = avg([t['der'] for t in diarization_transcript]),
-			avg_der_ = avg([t['der_'] for t in diarization_transcript])
+			avg_ser = avg([dt['ser'] for dt in diarization_transcript]) if all('ser' in dt for dt in diarization_transcript) else -1.0,
+			avg_der = avg([dt['der'] for dt in diarization_transcript]) if all('der' in dt for dt in diarization_transcript) else -1.0,
+			avg_der_ = avg([dt['der_'] for dt in diarization_transcript]) if all('der_' in dt for dt in diarization_transcript) else -1.0
 		))
 		for i, dt in enumerate(diarization_transcript):
-			audio_html = fmt_audio(audio_path, channel = channel) if debug_audio else ''
+			audio_html = fmt_audio(dt['audio_path']) if debug_audio else ''
 			begin, end = 0.0, transcripts.compute_duration(dt)
 			for refhyp in ['ref', 'hyp']:
-				html.write('<tr class="border-{refhyp}"><td class="nowrap">{audio_name}</td><td>{end:.02f}</td><td>{refhyp}</td><td>{ser:.02f}</td><td>{der:.02f}</td><td>{der_:.02f}</td><td rospan="{rowspan}">{audio_html}</td><td>{barcode}</td></tr>\n'.format(audio_name = dt['audio_name'], audio_html = audio_html if refhyp == 'ref' else '', rowspan = 2 if refhyp == 'ref' else 1, refhyp = refhyp, end = end, ser = dt['ser'], der = dt['der'], der_ = dt['der_'], barcode = fmt_img_speaker_barcode(dt[refhyp], begin = begin, end = end, onclick = None if debug_audio else '', dataset = dict(channel = i))))
+				if refhyp in dt:
+					html.write('<tr class="border-{refhyp}"><td class="nowrap">{audio_name}</td><td>{end:.02f}</td><td>{refhyp}</td><td>{ser:.02f}</td><td>{der:.02f}</td><td>{der_:.02f}</td><td rospan="{rowspan}">{audio_html}</td><td>{barcode}</td></tr>\n'.format(audio_name = dt['audio_name'], audio_html = audio_html if refhyp == 'ref' else '', rowspan = 2 if refhyp == 'ref' else 1, refhyp = refhyp, end = end, ser = dt.get('ser', -1.0), der = dt.get('der', -1.0), der_ = dt.get('der_', -1.0), barcode = fmt_img_speaker_barcode(dt[refhyp], begin = begin, end = end, onclick = None if debug_audio else '', dataset = dict(channel = i))))
 
 		html.write('</table></body></html>')
 	return html_path
@@ -123,7 +124,7 @@ def fmt_img_speaker_barcode(transcript, begin = None, end = None, colors = speak
 	plt.close()
 	uri_speaker_barcode = base64.b64encode(buf.getvalue()).decode()
 	dataset = ' '.join(f'data-{k}="{v}"' for k, v in dataset.items())
-	return f'<img onclick="{onclick}" src="data:image/jpeg;base64,{uri_speaker_barcode}" style="width:100% {dataset}"></img>'
+	return f'<img onclick="{onclick}" src="data:image/jpeg;base64,{uri_speaker_barcode}" style="width:100%" data-begin="{begin}" data-end="{end}" {dataset}></img>'
 
 
 def fmt_svg_speaker_barcode(transcript, begin, end, colors = speaker_colors, max_segment_seconds = 60, onclick = None):
@@ -140,7 +141,7 @@ def fmt_svg_speaker_barcode(transcript, begin, end, colors = speaker_colors, max
 		if duration <= max_segment_seconds:
 			duration = max_segment_seconds
 		header = '<div style="width: 100%; height: 15px; border: 1px black solid"><svg viewbox="0 0 1 1" style="width:100%; height:100%" preserveAspectRatio="none">'
-		body = '\n'.join('<rect data-begin="{begin}" data-end="{end}" x="{x}" width="{width}" height="1" style="fill:{color}" onclick="{onclick}"><title>speaker{speaker} | {begin:.2f} - {end:.2f} [{duration:.2f}]</title></rect>'.format(onclick = onclick, x = (t['begin'] - summary['begin']) / duration, width = (t['end'] - t['begin']) / duration, color = color(t['speaker']), duration = transcripts.compute_duration(t), **t) for t in transcript) 
+		body = '\n'.join('<rect data-begin="{begin}" data-end="{end}" x="{x}" width="{width}" height="1" style="fill:{color}" onclick="{onclick}"><title>speaker{speaker} | {begin:.2f} - {end:.2f} [{duration:.2f}]</title></rect>'.format(onclick = onclick, x = (t['begin'] - summary['begin']) / duration, width = (t['end'] - t['begin']) / duration, color = color(t['speaker']), duration = transcripts.compute_duration(t), **t) for t in transcript)
 		footer = '</svg></div>'
 		html += header + body + footer
 	return html
