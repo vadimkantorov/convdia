@@ -27,6 +27,7 @@ class PrimitiveVAD:
 		self.silence_relative_threshold = silence_relative_threshold
 		self.eps = eps
 		self.normalization_percentile = normalization_percentile
+		self.required_type = 'float32'
 
 	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
 		assert len(signal) == 2
@@ -83,6 +84,7 @@ class WebrtcVAD:
 		self.window_size = window_size
 		self.frame_len = int(window_size * sample_rate)
 		self.vad = webrtcvad.Vad(aggressiveness)
+		self.required_type = 'int16'
 	
 	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
 		assert signal.dtype == torch.int16
@@ -108,4 +110,4 @@ class WebrtcVAD:
 				if simultaneous_speakers[i] > 1:
 					speech[i, :] = False
 					speech[i, speech[i-1, :].max()] = True
-		return speech
+			return speech
