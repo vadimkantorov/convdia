@@ -1,4 +1,5 @@
 import shapes
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -13,13 +14,15 @@ def resize_to_min_size_(*tensors, dim = -1):
 
 class PrimitiveVAD:
 	def __init__(self,
-	             kernel_size_smooth_silence : int = 128,
-	             kernel_size_smooth_signal: int = 4096,
+	             device: str = 'cpu',
+	             kernel_size_smooth_silence: int = 4096,
+	             kernel_size_smooth_signal: int = 128,
 	             kernel_size_smooth_speaker: int = 4096,
-	             silence_absolute_threshold: float = 0.2,
-	             silence_relative_threshold: float = 0.5,
+	             silence_absolute_threshold: float = 0.05,
+	             silence_relative_threshold: float = 0.2,
 	             eps: float = 1e-9,
 	             normalization_percentile: float = 0.9):
+		self.device = device
 		self.kernel_size_smooth_silence = kernel_size_smooth_silence
 		self.kernel_size_smooth_signal = kernel_size_smooth_signal
 		self.kernel_size_smooth_speaker = kernel_size_smooth_speaker
@@ -27,10 +30,12 @@ class PrimitiveVAD:
 		self.silence_relative_threshold = silence_relative_threshold
 		self.eps = eps
 		self.normalization_percentile = normalization_percentile
+		self.required_wrapper = torch.tensor
 		self.required_type = 'float32'
 
 	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
 		assert len(signal) == 2
+		signal = signal.to(self.device)
 
 		padding = self.kernel_size_smooth_signal // 2
 		stride = 1
@@ -52,7 +57,7 @@ class PrimitiveVAD:
 		silence = silence_absolute | silence_relative
 
 		if keep_intersections:
-			return ~silence
+			speech = ~silence
 		else:
 			diff_flat = smoothed_for_diff[0] - smoothed_for_diff[1]
 			speaker_id_bipole = diff_flat.sign()
@@ -68,11 +73,13 @@ class PrimitiveVAD:
 			resize_to_min_size_(silence, speaker_id_bipole, dim=-1)
 
 			bipole = torch.tensor([1, -1], dtype=speaker_id_bipole.dtype, device=speaker_id_bipole.device)
-			return (~silence) * (speaker_id_bipole.unsqueeze(0) == bipole.unsqueeze(1))
+			speech = (~silence) * (speaker_id_bipole.unsqueeze(0) == bipole.unsqueeze(1))
+		speech = torch.cat([~speech.any(dim = 0).unsqueeze(0), speech])
+		return speech
 
 
 class WebrtcVAD:
-	def __init__(self, aggressiveness: int = 1, sample_rate: int = 8_000, window_size: float = 0.02):
+	def __init__(self, aggressiveness: int = 3, sample_rate: int = 8_000, window_size: float = 0.01):
 		'''
 		Aggressiveness mode, which is an integer between 0 and 3.
 		0 is the least aggressive about filtering out non-speech, 3 is the most aggressive.
@@ -84,30 +91,37 @@ class WebrtcVAD:
 		self.window_size = window_size
 		self.frame_len = int(window_size * sample_rate)
 		self.vad = webrtcvad.Vad(aggressiveness)
+		self.required_wrapper = np.array
 		self.required_type = 'int16'
 	
 	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
-		assert signal.dtype == torch.int16
-		speech = []
+		assert signal.dtype == np.int16
+		speech_length = np.zeros(signal.shape, dtype = np.int)
 		for channel in range(len(signal)):
-			speech.append([])
-			for frame in signal[channel].split(self.frame_len):
-				chunk_size = len(frame)
-				if chunk_size < self.frame_len:
-					frame = torch.stack([frame, torch.zeros(self.frame_len - chunk_size, dtype = torch.int16, device = frame.device)])
-				if self.vad.is_speech(bytearray(frame.numpy()), self.sample_rate):
-					speech[-1].extend([True] * chunk_size)
-				else:
-					speech[-1].extend([False] * chunk_size)
+			frames = np.pad(signal[channel], (0, self.frame_len - signal.shape[-1] % self.frame_len), 'constant', constant_values = (0, 0))
+			frames = np.split(frames, len(frames) // self.frame_len)
+			start = None
+			amount = 0
 
-		speech = torch.tensor(speech, device = signal.device)
+			for i, frame in enumerate(frames):
+				is_speech = self.vad.is_speech(bytearray(frame), self.sample_rate)
+				if is_speech and start is None:
+					start = i
+					amount = 1
+				elif is_speech:
+					amount += 1
+				elif not is_speech and start is not None:
+					speech_length[channel, start * self.frame_len: (start+amount) * self.frame_len] = amount * self.frame_len
+					start = None
+					amount = 0
+
+			if start is not None:
+				speech_length[channel, start * self.frame_len: (start + amount) * self.frame_len] = amount * self.frame_len
+
 		if keep_intersections:
-			return speech
+			speech = speech_length > 0
 		else:
-			# prefer started earlier speaker, could be optimized to longest speech algorithm
-			simultaneous_speakers = speech.sum(dim = -1)
-			for i in range(speech.shape[-1]):
-				if simultaneous_speakers[i] > 1:
-					speech[i, :] = False
-					speech[i, speech[i-1, :].max()] = True
-			return speech
+			speech_max_length = speech_length.max(axis=0)
+			speech = (speech_length == speech_max_length[np.newaxis, :]) & (speech_max_length != 0)
+		speech = np.vstack([~speech.any(axis = 0), speech])
+		return speech

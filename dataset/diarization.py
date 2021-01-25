@@ -1,21 +1,19 @@
 import os
 import json
 import tqdm
-import torch
 import argparse
-import itertools
 import vad
 import audio
 
 
-def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int, keep_intersections: bool, vad_type: str):
+def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int, keep_intersections: bool, vad_type: str, device: str):
 	if os.path.isdir(input_path):
 		audio_files = [os.path.join(input_path, audio_name) for audio_name in os.listdir(input_path)]
 	else:
 		audio_files = [input_path]
 
 	if vad_type == 'simple':
-		_vad = vad.PrimitiveVAD()
+		_vad = vad.PrimitiveVAD(device = device)
 	elif vad_type == 'webrtc':
 		_vad = vad.WebrtcVAD(sample_rate = sample_rate)
 	else:
@@ -30,11 +28,10 @@ def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int
 
 
 def generate_markup(audio_path: str, sample_rate: int, vad, keep_intersections: bool):
-	signal, _ = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = vad.required_type, __array_wrap__ = torch.tensor)
+	signal, _ = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = vad.required_type, __array_wrap__ = vad.required_wrapper)
 	speaker_masks = vad.detect(signal, keep_intersections)
-	silence = ~speaker_masks.any(dim=0)
 	markup = []
-	for mask in itertools.chain([silence], speaker_masks):
+	for mask in speaker_masks:
 		intervals = []
 		interval = None
 		for i, sample in enumerate(mask):
@@ -44,6 +41,9 @@ def generate_markup(audio_path: str, sample_rate: int, vad, keep_intersections: 
 				interval['end'] = i / sample_rate
 				intervals.append(interval)
 				interval = None
+		if interval is not None:
+			interval['end'] = i / sample_rate
+			intervals.append(interval)
 		markup.append(intervals)
 	return dict(audio_path = audio_path, audio_name = os.path.basename(audio_path), markup = markup)
 
@@ -57,7 +57,8 @@ if __name__ == '__main__':
 	cmd.add_argument('--output-path', '-o')
 	cmd.add_argument('--sample-rate', type = int, default = 8_000)
 	cmd.add_argument('--keep-intersections', action = 'store_true', default = False)
-	cmd.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'simple')
+	cmd.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
+	cmd.add_argument('--device', type = str, default = 'cpu')
 	cmd.set_defaults(func = make_diarization_dataset)
 
 	args = vars(parser.parse_args())
