@@ -4,9 +4,10 @@ import tqdm
 import argparse
 import vad
 import audio
+import functools
+import multiprocessing as mp
 
-
-def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int, keep_intersections: bool, vad_type: str, device: str):
+def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int, keep_intersections: bool, vad_type: str, device: str, processes: int):
 	if os.path.isdir(input_path):
 		audio_files = [os.path.join(input_path, audio_name) for audio_name in os.listdir(input_path)]
 	else:
@@ -14,14 +15,19 @@ def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int
 
 	if vad_type == 'simple':
 		_vad = vad.PrimitiveVAD(device = device)
-	elif vad_type == 'webrtc':
+	elif vad_type == 'webrtc' and processes == 0:
 		_vad = vad.WebrtcVAD(sample_rate = sample_rate)
+	elif vad_type == 'webrtc' and processes > 0:
+		_vad = vad.PicklableWebrtcVAD(sample_rate = sample_rate)
 	else:
 		raise RuntimeError(f'VAD for type {vad_type} not found.')
 
-	dataset = []
-	for audio_path in tqdm.tqdm(audio_files):
-		dataset.append(generate_markup(audio_path, sample_rate, _vad, keep_intersections))
+	if processes > 0:
+		parametrized_generate = functools.partial(generate_markup, sample_rate=sample_rate, vad=_vad, keep_intersections=keep_intersections)
+		with mp.Pool(processes=processes) as pool:
+			dataset = list(tqdm.tqdm(pool.imap(parametrized_generate, audio_files), total=len(audio_files)))
+	else:
+		dataset = [generate_markup(audio_path, sample_rate, _vad, keep_intersections) for audio_path in tqdm.tqdm(audio_files)]
 
 	with open(output_path, 'w') as output:
 		output.write('\n'.join([json.dumps(example, ensure_ascii = False) for example in dataset]))
@@ -59,6 +65,7 @@ if __name__ == '__main__':
 	cmd.add_argument('--keep-intersections', action = 'store_true', default = False)
 	cmd.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
 	cmd.add_argument('--device', type = str, default = 'cpu')
+	cmd.add_argument('--processes', type = int, default = 0)
 	cmd.set_defaults(func = make_diarization_dataset)
 
 	args = vars(parser.parse_args())
