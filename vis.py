@@ -1,17 +1,8 @@
-import os
-import collections
-import glob
+import argparse
 import json
 import io
-import sys
-import math
-import typing
-import itertools
-import argparse
 import base64
 import matplotlib.pyplot as plt
-import torch
-import torch.nn.functional as F
 import audio
 import transcripts
 
@@ -157,6 +148,38 @@ def audio_data_uri(audio_path, sample_rate = None, audio_backend = 'scipy', audi
 		
 	return data_uri(audio_format = audio_format, audio_bytes = audio_bytes)
 
+
 def fmt_audio(audio_path, channel = 0):
 	return f'<audio id="audio{channel}" style="width:100%" controls src="{audio_data_uri(audio_path)}"></audio>\n'
 
+
+def viz_dataset(dataset_path, html_path, debug_audio):
+	dataset = []
+	with open(dataset_path) as dataset_file:
+		for line in dataset_file:
+			example = json.loads(line)
+			markup = []
+			for speaker in range(1, len(example['markup'])):
+				markup.extend(dict(begin = t['begin'], end = t['end'], speaker = speaker) for t in example['markup'][speaker])
+			markup = sorted(markup, key = lambda x: x['end'])
+			dataset.append(dict(
+				audio_path = example['audio_path'],
+				audio_name = example['audio_name'],
+				ref = markup
+			))
+	diarization(dataset, html_path, debug_audio)
+
+
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser()
+	subparsers = parser.add_subparsers()
+
+	cmd = subparsers.add_parser('diarization')
+	cmd.add_argument('--input-path', '-i', dest = 'dataset_path', required = True)
+	cmd.add_argument('--output-path', '-o', dest = 'html_path', required = True)
+	cmd.add_argument('--audio', dest = 'debug_audio', action = 'store_true', default = False)
+	cmd.set_defaults(func = viz_dataset)
+
+	args = vars(parser.parse_args())
+	func = args.pop('func')
+	func(**args)
