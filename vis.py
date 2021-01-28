@@ -89,7 +89,7 @@ def diarization(diarization_transcript, html_path, debug_audio):
 			begin, end = 0.0, transcripts.compute_duration(dt)
 			for refhyp in ['ref', 'hyp']:
 				if refhyp in dt:
-					html.write('<tr class="border-{refhyp}"><td class="nowrap">{audio_name}</td><td>{end:.02f}</td><td>{refhyp}</td><td>{ser:.02f}</td><td>{der:.02f}</td><td>{der_:.02f}</td><td rospan="{rowspan}">{audio_html}</td><td>{barcode}</td></tr>\n'.format(audio_name = dt['audio_name'], audio_html = audio_html if refhyp == 'ref' else '', rowspan = 2 if refhyp == 'ref' else 1, refhyp = refhyp, end = end, ser = dt.get('ser', -1.0), der = dt.get('der', -1.0), der_ = dt.get('der_', -1.0), barcode = fmt_img_speaker_barcode(dt[refhyp], begin = begin, end = end, onclick = None if debug_audio else '', dataset = dict(channel = i))))
+					html.write('<tr class="border-{refhyp}"><td class="nowrap">{audio_name}</td><td>{end:.02f}</td><td>{refhyp}</td><td>{ser:.02f}</td><td>{der:.02f}</td><td>{der_:.02f}</td><td rospan="{rowspan}">{audio_html}</td><td>{barcode}</td></tr>\n'.format(audio_name = dt['audio_name'], audio_html = audio_html if refhyp == 'ref' or 'ref' not in dt else '', rowspan = 2 if refhyp == 'ref' else 1, refhyp = refhyp, end = end, ser = dt.get('ser', -1.0), der = dt.get('der', -1.0), der_ = dt.get('der_', -1.0), barcode = fmt_img_speaker_barcode(dt[refhyp], begin = begin, end = end, onclick = None if debug_audio else '', dataset = dict(channel = i))))
 
 		html.write('</table></body></html>')
 	return html_path
@@ -153,21 +153,40 @@ def fmt_audio(audio_path, channel = 0):
 	return f'<audio id="audio{channel}" style="width:100%" controls src="{audio_data_uri(audio_path)}"></audio>\n'
 
 
-def viz_dataset(dataset_path, html_path, debug_audio):
-	dataset = []
-	with open(dataset_path) as dataset_file:
-		for line in dataset_file:
-			example = json.loads(line)
-			markup = []
-			for speaker in range(1, len(example['markup'])):
-				markup.extend(dict(begin = t['begin'], end = t['end'], speaker = speaker) for t in example['markup'][speaker])
-			markup = sorted(markup, key = lambda x: x['end'])
-			dataset.append(dict(
-				audio_path = example['audio_path'],
-				audio_name = example['audio_name'],
-				ref = markup
-			))
-	diarization(dataset, html_path, debug_audio)
+def viz_dataset(ref_path, hyp_path, html_path, debug_audio):
+	assert ref_path is not None or hyp_path is not None
+
+	data_files = []
+	if ref_path is not None:
+		data_files.append(('ref', ref_path))
+	if hyp_path is not None:
+		data_files.append(('hyp', hyp_path))
+
+	examples = None
+	for hypref, path in data_files:
+		buffer = dict()
+		with open(path) as data_file:
+			for line in data_file:
+				example = json.loads(line)
+				if examples is not None and example['audio_path'] not in examples:
+					continue
+				markup = []
+				for speaker in range(1, len(example['markup'])):
+					markup.extend(dict(begin = t['begin'], end = t['end'], speaker = speaker) for t in example['markup'][speaker])
+				markup = sorted(markup, key = lambda x: x['end'])
+				if examples is not None:
+					buffer[example['audio_path']] = examples[example['audio_path']]
+					buffer[example['audio_path']][hypref] = markup
+				else:
+					buffer[example['audio_path']] = {
+						'audio_path': example['audio_path'],
+						'audio_name': example['audio_name'],
+						hypref: markup
+					}
+		examples = buffer
+	examples = list(examples.values())
+
+	diarization(examples, html_path, debug_audio)
 
 
 if __name__ == '__main__':
@@ -175,7 +194,8 @@ if __name__ == '__main__':
 	subparsers = parser.add_subparsers()
 
 	cmd = subparsers.add_parser('diarization')
-	cmd.add_argument('--input-path', '-i', dest = 'dataset_path', required = True)
+	cmd.add_argument('--ref-path', '-rp')
+	cmd.add_argument('--hyp-path', '-hp')
 	cmd.add_argument('--output-path', '-o', dest = 'html_path', required = True)
 	cmd.add_argument('--audio', dest = 'debug_audio', action = 'store_true', default = False)
 	cmd.set_defaults(func = viz_dataset)

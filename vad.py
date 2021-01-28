@@ -34,7 +34,7 @@ class PrimitiveVAD:
 		self.required_type = 'float32'
 
 	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
-		assert len(signal) == 2
+		assert len(signal) <= 2
 		signal = signal.to(self.device)
 
 		padding = self.kernel_size_smooth_signal // 2
@@ -56,7 +56,7 @@ class PrimitiveVAD:
 		silence_relative = smoothed_for_silence / (self.eps + signal_max) < self.silence_relative_threshold
 		silence = silence_absolute | silence_relative
 
-		if keep_intersections:
+		if keep_intersections or len(signal) == 1:
 			speech = ~silence
 		else:
 			diff_flat = smoothed_for_diff[0] - smoothed_for_diff[1]
@@ -94,10 +94,10 @@ class WebrtcVAD:
 		self.required_wrapper = np.array
 		self.required_type = 'int16'
 
-	def _is_speech(self, buf, sample_rate, length=None):
-		return self.vad.is_speech(buf, sample_rate, length)
-	
 	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
+		return self._detect(self.vad, signal, keep_intersections)
+	
+	def _detect(self, vad, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
 		assert signal.dtype == np.int16
 		speech_length = np.zeros(signal.shape, dtype = np.int)
 		for channel in range(len(signal)):
@@ -107,7 +107,7 @@ class WebrtcVAD:
 			amount = 0
 
 			for i, frame in enumerate(frames):
-				is_speech = self._is_speech(bytearray(frame), self.sample_rate)
+				is_speech = vad.is_speech(bytearray(frame), self.sample_rate)
 				if is_speech and start is None:
 					start = i
 					amount = 1
@@ -145,6 +145,6 @@ class PicklableWebrtcVAD(WebrtcVAD):
 		self.required_wrapper = np.array
 		self.required_type = 'int16'
 
-	def _is_speech(self, buf, sample_rate, length=None):
+	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
 		import webrtcvad
-		return webrtcvad.Vad(self.aggressiveness).is_speech(buf, sample_rate, length)
+		return self._detect(webrtcvad.Vad(self.aggressiveness), signal, keep_intersections)

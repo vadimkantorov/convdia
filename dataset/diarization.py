@@ -5,7 +5,9 @@ import argparse
 import vad
 import audio
 import functools
+import transcripts
 import multiprocessing as mp
+
 
 def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int, keep_intersections: bool, vad_type: str, device: str, processes: int):
 	if os.path.isdir(input_path):
@@ -36,21 +38,7 @@ def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int
 def generate_markup(audio_path: str, sample_rate: int, vad, keep_intersections: bool):
 	signal, _ = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = vad.required_type, __array_wrap__ = vad.required_wrapper)
 	speaker_masks = vad.detect(signal, keep_intersections)
-	markup = []
-	for mask in speaker_masks:
-		intervals = []
-		interval = None
-		for i, sample in enumerate(mask):
-			if sample and interval is None:
-				interval = dict(begin = i / sample_rate)
-			elif not sample and interval is not None:
-				interval['end'] = i / sample_rate
-				intervals.append(interval)
-				interval = None
-		if interval is not None:
-			interval['end'] = i / sample_rate
-			intervals.append(interval)
-		markup.append(intervals)
+	markup = transcripts.mask_to_intervals(speaker_masks, sample_rate)
 	return dict(audio_path = audio_path, audio_name = os.path.basename(audio_path), markup = markup)
 
 

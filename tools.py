@@ -9,12 +9,8 @@
 
 import os
 import argparse
-import json
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import audio
-import shapes
 import models
 import vad
 import vis
@@ -43,7 +39,7 @@ def genref(input_path, output_path, sample_rate, window_size, device, max_durati
 		print(transcripts.save(rttm_path, transcript))
 		
 		if debug_audio:
-			debug_signal = torch.cat([signal[..., :speaker_id_ref.shape[-1]], models.convert_speaker_id(speaker_id_ref[..., :signal.shape[-1]], to_bipole = True).unsqueeze(0).cpu() * 0.5, speaker_id_ref_[..., :signal.shape[-1]].cpu() * 0.5]).T
+			debug_signal = torch.cat([signal[..., :speaker_id_ref.shape[-1]], models.common.convert_speaker_id(speaker_id_ref[..., :signal.shape[-1]], to_bipole = True).unsqueeze(0).cpu() * 0.5, speaker_id_ref_[..., :signal.shape[-1]].cpu() * 0.5]).T
 			print(audio.write_audio(transcript_path + '.wav', debug_signal, sample_rate, mono = False))
 
 		transcript_refs.append(dict(
@@ -57,7 +53,7 @@ def genref(input_path, output_path, sample_rate, window_size, device, max_durati
 def genhyppyannote(input_path, output_path, device, batch_size, html, ext, sample_rate, max_duration):
 	os.makedirs(output_path, exist_ok = True)
 	audio_source = ([(input_path, audio_name) for audio_name in os.listdir(input_path)] if os.path.isdir(input_path) else [(os.path.dirname(input_path), os.path.basename(input_path))])
-	model = models.PyannoteDiarizationModel(device = device, batch_size = batch_size)
+	model = models.common.PyannoteDiarizationModel(device = device, batch_size = batch_size)
 	for i, (input_path, audio_name) in enumerate(audio_source):
 		print(i, '/', len(audio_source), audio_name)
 		audio_path = os.path.join(input_path, audio_name)

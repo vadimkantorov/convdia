@@ -2,6 +2,7 @@ import os
 import json
 import models
 import audio
+import shapes
 
 time_missing = -1
 channel_missing = -1
@@ -10,10 +11,30 @@ speaker_missing = 0
 default_speaker_names = '_' + ''.join(chr(ord('A') + i) for i in range(26))
 default_channel_names = {channel_missing : 'channel_', 0 : 'channel0', 1 : 'channel1'}
 
+
+def mask_to_intervals(speaker_masks: shapes.BT, sample_rate: int):
+	intervals_by_channel = []
+	for mask in speaker_masks:
+		intervals = []
+		interval = None
+		for i, sample in enumerate(mask):
+			if sample and interval is None:
+				interval = dict(begin=i / sample_rate)
+			elif not sample and interval is not None:
+				interval['end'] = i / sample_rate
+				intervals.append(interval)
+				interval = None
+		if interval is not None:
+			interval['end'] = i / sample_rate
+			intervals.append(interval)
+		intervals_by_channel.append(intervals)
+	return intervals_by_channel
+
+
 def from_speaker_mask(speaker_mask, sample_rate, **extra):
 	# speaker_missing assumed 0 if t['speaker'] != transcripts.speaker_missing
 	#transcript = [dict(audio_path = audio_path, begin = float(begin) / sample_rate, end = (float(begin) + float(duration)) / sample_rate, speaker_name = str(int(speaker)), speaker = int(speaker)) for begin, duration, speaker in zip(*rle1d(speaker_id_ref.cpu()))]
-	return [dict(begin = float(begin) / sample_rate, end = (float(begin) + float(duration)) / sample_rate, speaker = speaker, speaker_name = default_speaker_names[speaker], **extra) for speaker in range(1, len(speaker_mask)) for begin, duration, mask in zip(*models.rle1d(speaker_mask[speaker])) if mask == 1]
+	return [dict(begin = float(begin) / sample_rate, end = (float(begin) + float(duration)) / sample_rate, speaker = speaker, speaker_name = default_speaker_names[speaker], **extra) for speaker in range(1, len(speaker_mask)) for begin, duration, mask in zip(*models.common.rle1d(speaker_mask[speaker])) if mask == 1]
 
 def summary(transcript, ij = False):
 	res = dict(

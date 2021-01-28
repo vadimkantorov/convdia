@@ -1,8 +1,6 @@
 import argparse
 import os
 import json
-import numpy as np
-import soundfile
 import torch
 import models
 import audio
@@ -22,7 +20,7 @@ if __name__ == '__main__':
 	
 	
 	torch.set_grad_enabled(False)
-	model = models.SincTDNN(sample_rate = args.sample_rate, padding_same = True, tdnn = dict(kernel_size_pool = 501, stride_pool = 101))#501, 101)) 101, 11
+	model = models.common.SincTDNN(sample_rate = args.sample_rate, padding_same = True, tdnn = dict(kernel_size_pool = 501, stride_pool = 101))#501, 101)) 101, 11
 	print('stride:', model.stride / args.sample_rate, 'kernel_size:', model.kernel_size / args.sample_rate) # kernel_size, stride = int(4.0 * args.sample_rate), int(1.0 * args.sample_rate)
 	diag = model.load_state_dict(torch.load(args.weights_path), strict = False)
 	assert diag.missing_keys == ['sincnet_.conv1d_.0.window', 'sincnet_.conv1d_.0.sinct'] and diag.unexpected_keys == ['tdnn_.segment7.weight', 'tdnn_.segment7.bias']	
