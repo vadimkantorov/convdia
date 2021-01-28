@@ -1,1 +1,2 @@
-from models.spectral_clustering import SpectralClusteringModel
+from models.spectral_clustering import SpectralClusteringDiarizationModel
+from models.pyannote import PyannoteDiarizationModel

@@ -19,7 +19,7 @@ def normalized_symmetric_laplacian(W):
 	return torch.eye(W.shape[-1], device = W.device, dtype = W.dtype) - W / D_sqrt.unsqueeze(-1) / D_sqrt.unsqueeze(-2)
 
 
-class SpectralClusteringModel:
+class SpectralClusteringDiarizationModel:
 	def __init__(self, vad, vad_sensitivity: float, weights_path: str, device: str, sample_rate: int):
 		self.vad = vad
 		self.vad_sensitivity = vad_sensitivity

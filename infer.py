@@ -16,10 +16,15 @@ def main(args):
 	elif args.vad_type == 'webrtc':
 		_vad = vad.WebrtcVAD(sample_rate = args.sample_rate)
 	else:
-		raise RuntimeError(f'VAD for type {args.vad_type} not found.')
+		raise RuntimeError(f'VAD for type "{args.vad_type}" not found.')
 
 	# loading model
-	model = models.SpectralClusteringModel(vad = _vad, vad_sensitivity = 0.90, weights_path = args.weights_path, device = args.device, sample_rate = args.sample_rate)
+	if args.model == 'spectral':
+		model = models.SpectralClusteringDiarizationModel(vad = _vad, vad_sensitivity = 0.90, weights_path = args.weights_path, device = args.device, sample_rate = args.sample_rate)
+	elif args.model == 'pyannote':
+		model = models.PyannoteDiarizationModel(vad = _vad, vad_sensitivity = 0.90, device = args.device, sample_rate = args.sample_rate)
+	else:
+		raise RuntimeError(f'Diarization model for name "{args.model}" not found.')
 
 	# loading audio
 	signal: shapes.BT; sample_rate: int
@@ -42,9 +47,10 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--audio-path', '-i', required=True)
 	parser.add_argument('--transcript-path', '-o', required=True)
-	parser.add_argument('--weights-path', default = 'emb_voxceleb/train/X.SpeakerDiarization.VoxCeleb.train/weights/0326.pt')
+	parser.add_argument('--weights-path', default = '_emb_voxceleb/train/X.SpeakerDiarization.VoxCeleb.train/weights/0326.pt')
 	parser.add_argument('--device', default = 'cuda')
 	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
+	parser.add_argument('--model', choices = ['pyannote', 'spectral'], default = 'pyannote')
 	parser.add_argument('--sample-rate', type = int, default = 16_000)
 	parser.add_argument('--num-speakers', type = int, default = 2)
 	args = parser.parse_args()

@@ -4,8 +4,8 @@
 # pip install optuna
 # pip install filelock
 # pip install git+https://github.com/pyannote/pyannote-audio
-#pip install sortedcontainers simplejson typing_extensions pyannote.database pyannote.metrics
-#pip install pyannote.core --no-dependencies
+# pip install sortedcontainers simplejson typing_extensions pyannote.database pyannote.metrics
+# pip install pyannote.core --no-dependencies
 
 import os
 import argparse
