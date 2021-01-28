@@ -178,14 +178,31 @@ def viz_dataset(ref_path, hyp_path, html_path, debug_audio):
 					buffer[example['audio_path']] = examples[example['audio_path']]
 					buffer[example['audio_path']][hypref] = markup
 				else:
-					buffer[example['audio_path']] = {
-						'audio_path': example['audio_path'],
-						'audio_name': example['audio_name'],
-						hypref: markup
-					}
+					example.pop('markup')
+					buffer[example['audio_path']] = example
+					buffer[hypref] = markup
 		examples = buffer
-	examples = list(examples.values())
+	examples = sorted(examples.values(), key = lambda x: x['audio_name'])
 
+	diarization(examples, html_path, debug_audio)
+
+
+def viz_metrics(metrics_path, html_path, debug_audio):
+	examples = []
+	with open(metrics_path) as metrics_file:
+		for line in metrics_file:
+			example = json.loads(line)
+			hyp = []
+			for speaker in range(1, len(example['hyp'])):
+				hyp.extend(dict(begin=t['begin'], end=t['end'], speaker=speaker) for t in example['hyp'][speaker])
+			example['hyp'] = sorted(hyp, key=lambda x: x['end'])
+
+			ref = []
+			for speaker in range(1, len(example['ref'])):
+				ref.extend(dict(begin=t['begin'], end=t['end'], speaker=speaker) for t in example['ref'][speaker])
+			example['ref'] = sorted(ref, key=lambda x: x['end'])
+			examples.append(example)
+	examples = sorted(examples, key=lambda x: x['audio_name'])
 	diarization(examples, html_path, debug_audio)
 
 
@@ -193,12 +210,18 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	subparsers = parser.add_subparsers()
 
-	cmd = subparsers.add_parser('diarization')
+	cmd = subparsers.add_parser('dataset')
 	cmd.add_argument('--ref-path', '-rp')
 	cmd.add_argument('--hyp-path', '-hp')
 	cmd.add_argument('--output-path', '-o', dest = 'html_path', required = True)
 	cmd.add_argument('--audio', dest = 'debug_audio', action = 'store_true', default = False)
 	cmd.set_defaults(func = viz_dataset)
+
+	cmd = subparsers.add_parser('metrics')
+	cmd.add_argument('--metrics-path', '-mp')
+	cmd.add_argument('--output-path', '-o', dest='html_path', required=True)
+	cmd.add_argument('--audio', dest='debug_audio', action='store_true', default=False)
+	cmd.set_defaults(func=viz_metrics)
 
 	args = vars(parser.parse_args())
 	func = args.pop('func')

@@ -39,7 +39,7 @@ def generate_markup(audio_path: str, sample_rate: int, vad, keep_intersections: 
 	signal, _ = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = vad.required_type, __array_wrap__ = vad.required_wrapper)
 	speaker_masks = vad.detect(signal, keep_intersections)
 	markup = transcripts.mask_to_intervals(speaker_masks, sample_rate)
-	return dict(audio_path = audio_path, audio_name = os.path.basename(audio_path), markup = markup)
+	return dict(audio_path = audio_path, audio_name = os.path.basename(audio_path), markup = markup, sample_rate = sample_rate, duration = signal.shape[-1] / sample_rate)
 
 
 if __name__ == '__main__':

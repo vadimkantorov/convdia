@@ -37,7 +37,9 @@ def main(args):
 	transcript = dict(
 		audio_path = args.audio_path,
 		audio_name = os.path.basename(args.audio_path),
-		markup = transcripts.mask_to_intervals(speaker_mask, sample_rate)
+		markup = transcripts.mask_to_intervals(speaker_mask, sample_rate),
+		sample_rate = sample_rate,
+		duration = signal.shape[-1] / sample_rate
 	)
 	with open(args.transcript_path, 'w') as output_file:
 		output_file.write(json.dumps(transcript, ensure_ascii=False))

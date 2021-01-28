@@ -81,6 +81,7 @@ class SpectralClusteringDiarizationModel:
 			fiedler_vector = torch.nn.functional.interpolate(fiedler_vector[None, None, :], signal.shape[-1]).squeeze()
 			speaker1 = (fiedler_vector < 0) & ~silence
 			speaker2 = (fiedler_vector > 0) & ~silence
+			silence = silence | ~(speaker1 | speaker2)
 
 			speaker_mask = torch.stack([silence, speaker1, speaker2])
 		return speaker_mask

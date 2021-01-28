@@ -1,5 +1,6 @@
 import os
 import json
+import torch
 import models
 import audio
 import shapes
@@ -10,6 +11,14 @@ speaker_missing = 0
 
 default_speaker_names = '_' + ''.join(chr(ord('A') + i) for i in range(26))
 default_channel_names = {channel_missing : 'channel_', 0 : 'channel0', 1 : 'channel1'}
+
+
+def intervals_to_mask(intervals, sample_rate: int, duration: float):
+	mask = torch.zeros(len(intervals), int(sample_rate * duration), dtype = torch.bool)
+	for i in range(len(intervals)):
+		for interval in intervals[i]:
+			mask[i, int(interval['begin'] * sample_rate): int(interval['end'] * sample_rate)] = True
+	return mask
 
 
 def mask_to_intervals(speaker_masks: shapes.BT, sample_rate: int):
