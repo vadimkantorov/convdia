@@ -17,10 +17,8 @@ def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int
 
 	if vad_type == 'simple':
 		_vad = vad.PrimitiveVAD(device = device)
-	elif vad_type == 'webrtc' and processes == 0:
+	elif vad_type == 'webrtc':
 		_vad = vad.WebrtcVAD(sample_rate = sample_rate)
-	elif vad_type == 'webrtc' and processes > 0:
-		_vad = vad.PicklableWebrtcVAD(sample_rate = sample_rate)
 	else:
 		raise RuntimeError(f'VAD for type {vad_type} not found.')
 

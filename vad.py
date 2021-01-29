@@ -84,21 +84,19 @@ class WebrtcVAD:
 		Aggressiveness mode, which is an integer between 0 and 3.
 		0 is the least aggressive about filtering out non-speech, 3 is the most aggressive.
 		'''
-		import webrtcvad
 		assert sample_rate in [8_000, 16_000, 32_000, 48_000]
 		assert window_size in [0.01, 0.02, 0.03]
 		self.sample_rate = sample_rate
 		self.window_size = window_size
 		self.frame_len = int(window_size * sample_rate)
-		self.vad = webrtcvad.Vad(aggressiveness)
+		self.aggressiveness = aggressiveness
 		self.required_wrapper = np.array
 		self.required_type = 'int16'
 
 	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
-		return self._detect(self.vad, signal, keep_intersections)
-	
-	def _detect(self, vad, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
 		assert signal.dtype == np.int16
+		import webrtcvad
+		vad = webrtcvad.Vad(self.aggressiveness)
 		speech_length = np.zeros(signal.shape, dtype = np.int)
 		for channel in range(len(signal)):
 			frames = np.pad(signal[channel], (0, self.frame_len - signal.shape[-1] % self.frame_len), 'constant', constant_values = (0, 0))
@@ -128,23 +126,3 @@ class WebrtcVAD:
 			speech = (speech_length == speech_max_length[np.newaxis, :]) & (speech_max_length != 0)
 		speech = np.vstack([~speech.any(axis = 0), speech])
 		return speech
-
-
-class PicklableWebrtcVAD(WebrtcVAD):
-	def __init__(self, aggressiveness: int = 3, sample_rate: int = 8_000, window_size: float = 0.01):
-		'''
-		Aggressiveness mode, which is an integer between 0 and 3.
-		0 is the least aggressive about filtering out non-speech, 3 is the most aggressive.
-		'''
-		assert sample_rate in [8_000, 16_000, 32_000, 48_000]
-		assert window_size in [0.01, 0.02, 0.03]
-		self.sample_rate = sample_rate
-		self.window_size = window_size
-		self.frame_len = int(window_size * sample_rate)
-		self.aggressiveness = aggressiveness
-		self.required_wrapper = np.array
-		self.required_type = 'int16'
-
-	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
-		import webrtcvad
-		return self._detect(webrtcvad.Vad(self.aggressiveness), signal, keep_intersections)

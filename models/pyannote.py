@@ -37,7 +37,7 @@ class PyannoteDiarizationModel:
 		with torch.no_grad():
 			silence: shapes.T = self.get_silence_mask(signal)
 			annotation = self.model(dict(waveform=signal.t().numpy(), sample_rate=sample_rate))
-			speaker_mask = torch.zeros(2, signal.shape[-1], dtype = torch.bool, device = signal.device)
+			speaker_mask = torch.zeros(2, signal.shape[-1], dtype = torch.bool, device = self.device)
 			for turn, _, speaker in annotation.itertracks(yield_label=True):
 				if speaker not in speakers_id:
 					speakers_id[speaker] = num_speakers

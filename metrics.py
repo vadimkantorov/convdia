@@ -15,7 +15,6 @@ def align_hypref(hyp: shapes.BT, ref: shapes.BT):
 
 
 def der(hyp: shapes.BT, ref: shapes.BT):
-	# ignore silence
 	false_alarm = (ref[0] & (hyp[1] | hyp[2])).sum().item()
 	missed_detection = (hyp[0] & (ref[1] | ref[2])).sum().item()
 	confusion = (hyp[1] & ref[2] & ~ref[1] | hyp[2] & ref[1] & ~ref[2]).sum().item()
@@ -23,8 +22,17 @@ def der(hyp: shapes.BT, ref: shapes.BT):
 	return (false_alarm + missed_detection + confusion) / total
 
 
+def der_(hyp: shapes.BT, ref: shapes.BT):
+	# total duration in denominator
+	false_alarm = (ref[0] & (hyp[1] | hyp[2])).sum().item()
+	missed_detection = (hyp[0] & (ref[1] | ref[2])).sum().item()
+	confusion = (hyp[1] & ref[2] & ~ref[1] | hyp[2] & ref[1] & ~ref[2]).sum().item()
+	total = ref.shape[-1]
+	return (false_alarm + missed_detection + confusion) / total
+
+
 def ser(hyp: shapes.BT, ref: shapes.BT):
-	# ignore silence
+	# der, measured only on ref speech
 	return der(hyp[:, ~ref[0]], ref[:, ~ref[0]])
 
 
@@ -52,15 +60,18 @@ def main(args):
 					buffer[example['audio_path']] = example
 		examples = buffer
 	examples = list(examples.values())
-	with open(args.output_path, 'w') as metrics_file:
-		for i, example in enumerate(examples):
-			example['hyp'], example['ref'] = align_hypref(example['hyp'], example['ref'])
-			example['der'] = der(example['hyp'], example['ref'])
-			example['ser'] = ser(example['hyp'], example['ref'])
-			example['hyp'] = transcripts.mask_to_intervals(example['hyp'], example['sample_rate'])
-			example['ref'] = transcripts.mask_to_intervals(example['ref'], example['sample_rate'])
-			metrics_file.write(json.dumps(example, ensure_ascii=False))
-			print(f"{i+1}/{len(examples)}. {example['audio_name']} DER:{example['der']:.2f} SER:{example['ser']:.2f}")
+	for i, example in enumerate(examples):
+		example['hyp'], example['ref'] = align_hypref(example['hyp'], example['ref'])
+		example['der'] = der(example['hyp'], example['ref'])
+		example['der_'] = der_(example['hyp'], example['ref'])
+		example['ser'] = ser(example['hyp'], example['ref'])
+		example['hyp'] = transcripts.mask_to_intervals(example['hyp'], example['sample_rate'])
+		example['ref'] = transcripts.mask_to_intervals(example['ref'], example['sample_rate'])
+		print(f"{i+1}/{len(examples)}. {example['audio_name']} DER:{example['der']:.2f} SER:{example['ser']:.2f}")
+
+	if args.output_path is not None:
+		with open(args.output_path, 'w') as metrics_file:
+			metrics_file.write('\n'.join(json.dumps(e, ensure_ascii=False) for e in examples))
 
 
 
@@ -68,7 +79,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--ref-path', '-rp', required = True)
 	parser.add_argument('--hyp-path', '-hp', required = True)
-	parser.add_argument('--output-path', '-o', required = True)
+	parser.add_argument('--output-path', '-o')
 	parser.add_argument('--sample-rate', '-sr', type = int, default = 16_000)
 
 	args = parser.parse_args()
