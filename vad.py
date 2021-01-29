@@ -96,9 +96,9 @@ class WebrtcVAD:
 	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
 		assert signal.dtype == np.int16
 		import webrtcvad
-		vad = webrtcvad.Vad(self.aggressiveness)
 		speech_length = np.zeros(signal.shape, dtype = np.int)
 		for channel in range(len(signal)):
+			vad = webrtcvad.Vad(self.aggressiveness)
 			frames = np.pad(signal[channel], (0, self.frame_len - signal.shape[-1] % self.frame_len), 'constant', constant_values = (0, 0))
 			frames = np.split(frames, len(frames) // self.frame_len)
 			start = None
