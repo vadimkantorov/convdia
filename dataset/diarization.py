@@ -44,7 +44,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	subparsers = parser.add_subparsers()
 
-	cmd = subparsers.add_parser('diarization')
+	cmd = subparsers.add_parser('dataset')
 	cmd.add_argument('--input-path', '-i', required=True)
 	cmd.add_argument('--output-path', '-o', required=True)
 	cmd.add_argument('--sample-rate', type = int, default = 8_000)

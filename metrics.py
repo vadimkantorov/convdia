@@ -6,6 +6,7 @@ import transcripts
 
 
 def align_hypref(hyp: shapes.BT, ref: shapes.BT):
+	assert len(hyp) == 3 and len(ref) == 3
 	original_order_score = (hyp & ref).sum()
 	inversed_order_score = (hyp[(0,2,1),:] & ref).sum()
 	if original_order_score > inversed_order_score:
@@ -15,6 +16,7 @@ def align_hypref(hyp: shapes.BT, ref: shapes.BT):
 
 
 def der(hyp: shapes.BT, ref: shapes.BT):
+	assert len(hyp) == 3 and len(ref) == 3
 	false_alarm = (ref[0] & (hyp[1] | hyp[2])).sum().item()
 	missed_detection = (hyp[0] & (ref[1] | ref[2])).sum().item()
 	confusion = (hyp[1] & ref[2] & ~ref[1] | hyp[2] & ref[1] & ~ref[2]).sum().item()
@@ -23,6 +25,7 @@ def der(hyp: shapes.BT, ref: shapes.BT):
 
 
 def der_(hyp: shapes.BT, ref: shapes.BT):
+	assert len(hyp) == 3 and len(ref) == 3
 	# total duration in denominator
 	false_alarm = (ref[0] & (hyp[1] | hyp[2])).sum().item()
 	missed_detection = (hyp[0] & (ref[1] | ref[2])).sum().item()
@@ -32,6 +35,7 @@ def der_(hyp: shapes.BT, ref: shapes.BT):
 
 
 def ser(hyp: shapes.BT, ref: shapes.BT):
+	assert len(hyp) == 3 and len(ref) == 3
 	# der, measured only on ref speech
 	return der(hyp[:, ~ref[0]], ref[:, ~ref[0]])
 

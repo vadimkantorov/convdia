@@ -1,5 +1,6 @@
 import os
 import json
+import math
 import torch
 import models
 import audio
@@ -14,7 +15,7 @@ default_channel_names = {channel_missing : 'channel_', 0 : 'channel0', 1 : 'chan
 
 
 def intervals_to_mask(intervals, sample_rate: int, duration: float):
-	mask = torch.zeros(len(intervals), int(sample_rate * duration), dtype = torch.bool)
+	mask = torch.zeros(len(intervals), math.ceil(sample_rate * duration), dtype = torch.bool)
 	for i in range(len(intervals)):
 		for interval in intervals[i]:
 			mask[i, int(interval['begin'] * sample_rate): int(interval['end'] * sample_rate)] = True
