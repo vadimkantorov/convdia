@@ -1,3 +1,12 @@
+# pip install pyannote.metrics
+# pip install pyannote.pipeline
+# pip install pescador
+# pip install optuna
+# pip install filelock
+# pip install git+https://github.com/pyannote/pyannote-audio
+# pip install sortedcontainers simplejson typing_extensions pyannote.database pyannote.metrics
+# pip install pyannote.core --no-dependencies
+
 import shapes
 import torch
 import numpy as np
