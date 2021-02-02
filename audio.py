@@ -4,6 +4,7 @@ import soundfile
 import librosa
 import subprocess
 
+
 def read_audio(audio_path, sample_rate, mono = False, dtype = 'float32', __array_wrap__ = None):
 	smax = np.iinfo(np.int16).max
 	f2s_numpy = lambda signal, max = np.float32(smax): np.multiply(signal, max).astype('int16')
@@ -26,16 +27,22 @@ def read_audio(audio_path, sample_rate, mono = False, dtype = 'float32', __array
 
 	return signal if __array_wrap__ is None else __array_wrap__(signal), sample_rate
 
-def write_audio(audio_path, signal, sample_rate, mono = False, format = 'wav'):
-	assert signal.dtype == torch.float32 or len(signal) == 1 or (not mono)
 
-	signal = signal if (not mono or len(signal) == 1) else signal.mean(dim = 0, keepdim = True)
-	
-	assert not isinstance(audio_path, str) or audio_path.endswith('.' + format)
-	assert signal.dtype == torch.float32 or signal.dtype == torch.int16
-	subtype = 'FLOAT' if signal.dtype == torch.float32 else 'PCM_16'
-	soundfile.write(audio_path, signal.numpy(), endian = 'LITTLE', samplerate = sample_rate, subtype = subtype, format = format.upper()) 
+def write_audio(audio_path, signal, sample_rate, mono = False, format = 'wav'):
+	signal = signal.cpu().numpy() if torch.is_tensor(signal) else signal
+	if  signal.dtype == np.float32:
+		subtype = 'FLOAT'
+	elif signal.dtype == np.int16:
+		subtype = 'PCM_16'
+	else:
+		raise RuntimeError(f'Signal with type {signal.dtype} is not supported.')
+
+	if mono and len(signal) != 1:
+		signal = signal.mean(-1, keepdims = True, dtype = signal.dtype)
+
+	soundfile.write(audio_path, signal, endian = 'LITTLE', samplerate = sample_rate, subtype = subtype, format = format.upper())
 	return audio_path
+
 
 def compute_duration(audio_path, backend = None):
 	assert backend in [None, 'scipy', 'ffmpeg', 'sox']
