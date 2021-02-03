@@ -44,7 +44,7 @@ def make_separation_dataset(input_path: str, output_path: str, sample_rate: int,
 	if processes > 0:
 		parametrized_generate = functools.partial(generate_utterances, output_path=output_path, sample_rate=sample_rate, vad=_vad, utterance_duration=utterance_duration, stride=stride)
 		with mp.Pool(processes=processes) as pool:
-			tqdm.tqdm(pool.imap(parametrized_generate, audio_files), total=len(audio_files))
+			list(tqdm.tqdm(pool.imap(parametrized_generate, audio_files), total=len(audio_files)))
 	else:
 		for audio_path in tqdm.tqdm(audio_files):
 			generate_utterances(audio_path, output_path, sample_rate, _vad, utterance_duration, stride)
@@ -61,7 +61,7 @@ def generate_utterances(audio_path: str, output_path: str, sample_rate: int, vad
 	                                                 strides = (speaker_masks.strides[0], stride, 1))
 	n_samples_by_speaker = sliding_window.sum(-1)
 	# speaker ratio in range [0;1] - silence ratio in range [0;1]
-	utterance_scores = n_samples_by_speaker[1:].min(0)/n_samples_by_speaker[1:].max(0) - n_samples_by_speaker[0]/utterance_duration
+	utterance_scores = n_samples_by_speaker[1:].min(0)/(n_samples_by_speaker[1:].max(0) + 1) - n_samples_by_speaker[0]/utterance_duration
 
 	n = 0
 	audio_name, extension = os.path.splitext(os.path.basename(audio_path))
@@ -77,19 +77,14 @@ def generate_utterances(audio_path: str, output_path: str, sample_rate: int, vad
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	subparsers = parser.add_subparsers()
-
-	cmd = subparsers.add_parser('dataset')
-	cmd.add_argument('--input-path', '-i', required=True)
-	cmd.add_argument('--output-path', '-o', required=True)
-	cmd.add_argument('--sample-rate', type = int, default = 8_000)
-	cmd.add_argument('--duration', dest = 'utterance_duration', type = float, default = 15.0)
-	cmd.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
-	cmd.add_argument('--device', type = str, default = 'cpu')
-	cmd.add_argument('--processes', type = int, default = 0)
-	cmd.add_argument('--stride', type = int, default = 1000)
-	cmd.set_defaults(func = make_separation_dataset)
+	parser.add_argument('--input-path', '-i', required=True)
+	parser.add_argument('--output-path', '-o', required=True)
+	parser.add_argument('--sample-rate', type = int, default = 8_000)
+	parser.add_argument('--duration', dest = 'utterance_duration', type = float, default = 15.0)
+	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
+	parser.add_argument('--device', type = str, default = 'cpu')
+	parser.add_argument('--processes', type = int, default = 0)
+	parser.add_argument('--stride', type = int, default = 1000)
 
 	args = vars(parser.parse_args())
-	func = args.pop('func')
-	func(**args)
+	make_separation_dataset(**args)

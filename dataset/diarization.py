@@ -42,18 +42,13 @@ def generate_markup(audio_path: str, sample_rate: int, vad, keep_intersections: 
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	subparsers = parser.add_subparsers()
-
-	cmd = subparsers.add_parser('dataset')
-	cmd.add_argument('--input-path', '-i', required=True)
-	cmd.add_argument('--output-path', '-o', required=True)
-	cmd.add_argument('--sample-rate', type = int, default = 8_000)
-	cmd.add_argument('--keep-intersections', action = 'store_true', default = False)
-	cmd.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
-	cmd.add_argument('--device', type = str, default = 'cpu')
-	cmd.add_argument('--processes', type = int, default = 0)
-	cmd.set_defaults(func = make_diarization_dataset)
+	parser.add_argument('--input-path', '-i', required=True)
+	parser.add_argument('--output-path', '-o', required=True)
+	parser.add_argument('--sample-rate', type = int, default = 8_000)
+	parser.add_argument('--keep-intersections', action = 'store_true', default = False)
+	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
+	parser.add_argument('--device', type = str, default = 'cpu')
+	parser.add_argument('--processes', type = int, default = 0)
 
 	args = vars(parser.parse_args())
-	func = args.pop('func')
-	func(**args)
+	make_diarization_dataset(**args)
