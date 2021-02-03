@@ -81,8 +81,8 @@ def main(args):
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--ref-path', '-rp', required = True)
-	parser.add_argument('--hyp-path', '-hp', required = True)
+	parser.add_argument('--ref-path', '--ref', required = True)
+	parser.add_argument('--hyp-path', '--hyp', required = True)
 	parser.add_argument('--output-path', '-o')
 	parser.add_argument('--sample-rate', '-sr', type = int, default = 16_000)
 

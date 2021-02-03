@@ -9,7 +9,7 @@ import transcripts
 import multiprocessing as mp
 
 
-def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int, keep_intersections: bool, vad_type: str, device: str, processes: int):
+def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int, keep_intersections: bool, vad_type: str, device: str, workers: int):
 	if os.path.isdir(input_path):
 		audio_files = [os.path.join(input_path, audio_name) for audio_name in os.listdir(input_path)]
 	else:
@@ -22,9 +22,9 @@ def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int
 	else:
 		raise RuntimeError(f'VAD for type {vad_type} not found.')
 
-	if processes > 0:
+	if workers > 0:
 		parametrized_generate = functools.partial(generate_markup, sample_rate=sample_rate, vad=_vad, keep_intersections=keep_intersections)
-		with mp.Pool(processes=processes) as pool:
+		with mp.Pool(processes=workers) as pool:
 			dataset = list(tqdm.tqdm(pool.imap(parametrized_generate, audio_files), total=len(audio_files)))
 	else:
 		dataset = [generate_markup(audio_path, sample_rate, _vad, keep_intersections) for audio_path in tqdm.tqdm(audio_files)]
@@ -48,7 +48,7 @@ if __name__ == '__main__':
 	parser.add_argument('--keep-intersections', action = 'store_true', default = False)
 	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
 	parser.add_argument('--device', type = str, default = 'cpu')
-	parser.add_argument('--processes', type = int, default = 0)
+	parser.add_argument('--workers', type = int, default = 0)
 
 	args = vars(parser.parse_args())
 	make_diarization_dataset(**args)

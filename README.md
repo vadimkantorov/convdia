@@ -15,7 +15,7 @@ We got:
 
 Dataset construction
 ```
-python -m dataset.diarization dataset -i folder_with_wavs/ -o dataset.json --processes 5
+python -m dataset.diarization dataset -i folder_with_wavs/ -o dataset.json --workers 5
 ```
 
 Run diarization model for dataset
@@ -25,15 +25,15 @@ python infer.py -i dataset.json -o hyp.json --model pyannote
 
 Estimate metric values for model result
 ```
-python metrics.py -rp dataset.json -hp hyp.json -o metrics.json
+python metrics.py -ref dataset.json -hyp hyp.json -o metrics.json
 ```
 
 Visualize model result
 ```
-python vis.py dataset -rp dataset.json -hp hyp.json -o vis.html --audio 
+python vis.py dataset -ref dataset.json -hyp hyp.json -o vis.html --audio 
 ```
 
 Visualize model result with metrics
 ```
-python vis.py metrics -mp metrics.json -o metrics.html
+python vis.py metrics --metrics-path metrics.json -o metrics.html
 ```

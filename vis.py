@@ -15,12 +15,12 @@ function onclick_img(evt)
 	const dim = img.getBoundingClientRect();
 	let begin = (evt.clientX - dim.left) / dim.width;
 	let relative = true;
-	if(img.dataset.begin != null && img.dataset.begin != '' && img.dataset.end != null && img.dataset.end != '')
+	if(img.datasets.begin != null && img.datasets.begin != '' && img.datasets.end != null && img.datasets.end != '')
 	{
-		begin = parseFloat(img.dataset.begin) + (parseFloat(img.dataset.end) - parseFloat(img.dataset.begin)) * begin;
+		begin = parseFloat(img.datasets.begin) + (parseFloat(img.datasets.end) - parseFloat(img.datasets.begin)) * begin;
 		relative = false;
 	}
-	const channel = img.dataset.channel || 0;
+	const channel = img.datasets.channel || 0;
 	play(evt, channel, begin, 0, false);
 }
 '''
@@ -29,8 +29,8 @@ onclick_svg_script = '''
 function onclick_svg(evt)
 {
 	const rect = evt.target;
-	const channel = rect.dataset.channel || 0;
-	play(evt, channel, parseFloat(rect.dataset.begin), parseFloat(rect.dataset.end));
+	const channel = rect.datasets.channel || 0;
+	play(evt, channel, parseFloat(rect.datasets.begin), parseFloat(rect.datasets.end));
 }
 '''
 
@@ -51,7 +51,7 @@ function play(evt, channel, begin, end, relative)
 	if(relative)
 		[begin, end] = [begin * audio.duration, end * audio.duration];
 	audio.currentTime = begin;
-	audio.dataset.endTime = end;
+	audio.datasets.endTime = end;
 	playTimeStampMillis = evt.timeStamp;
 	audio.play();
 	return false;
@@ -60,7 +60,7 @@ function play(evt, channel, begin, end, relative)
 function onpause_(evt)
 {
 	if(evt.timeStamp - playTimeStampMillis > 10)
-		evt.target.dataset.endTime = null;
+		evt.target.datasets.endTime = null;
 }
 
 '''
@@ -210,15 +210,15 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	subparsers = parser.add_subparsers()
 
-	cmd = subparsers.add_parser('dataset')
-	cmd.add_argument('--ref-path', '-rp')
-	cmd.add_argument('--hyp-path', '-hp')
+	cmd = subparsers.add_parser('datasets')
+	cmd.add_argument('--ref-path', '--ref')
+	cmd.add_argument('--hyp-path', '--hyp')
 	cmd.add_argument('--output-path', '-o', dest = 'html_path', required = True)
 	cmd.add_argument('--audio', dest = 'debug_audio', action = 'store_true', default = False)
 	cmd.set_defaults(func = viz_dataset)
 
 	cmd = subparsers.add_parser('metrics')
-	cmd.add_argument('--metrics-path', '-mp')
+	cmd.add_argument('--metrics-path', '--metrics')
 	cmd.add_argument('--output-path', '-o', dest='html_path', required=True)
 	cmd.add_argument('--audio', dest='debug_audio', action='store_true', default=False)
 	cmd.set_defaults(func=viz_metrics)

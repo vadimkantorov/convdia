@@ -80,12 +80,9 @@ class PrimitiveVAD:
 
 class WebrtcVAD:
 	def __init__(self, aggressiveness: int = 3, sample_rate: int = 8_000, window_size: float = 0.01):
-		'''
-		Aggressiveness mode, which is an integer between 0 and 3.
-		0 is the least aggressive about filtering out non-speech, 3 is the most aggressive.
-		'''
 		assert sample_rate in [8_000, 16_000, 32_000, 48_000]
 		assert window_size in [0.01, 0.02, 0.03]
+		assert aggressiveness in [0, 1, 2, 3] #3 is the most aggressive
 		self.sample_rate = sample_rate
 		self.window_size = window_size
 		self.frame_len = int(window_size * sample_rate)

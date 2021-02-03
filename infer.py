@@ -51,9 +51,9 @@ def main(args):
 		paths = [args.audio_path]
 
 	# make transcripts
-	if args.processes > 0:
+	if args.workers > 0:
 		parametrized_transcript = functools.partial(get_transcript, model, sample_rate = args.sample_rate)
-		with mp.Pool(processes=args.processes) as pool:
+		with mp.Pool(processes=args.workers) as pool:
 			_transcripts = list(tqdm.tqdm(pool.imap(parametrized_transcript, paths), total=len(paths)))
 	else:
 		_transcripts = [get_transcript(model, path, args.sample_rate) for path in tqdm.tqdm(paths)]
@@ -72,7 +72,7 @@ if __name__ == '__main__':
 	parser.add_argument('--model', choices = ['pyannote', 'spectral'], default = 'pyannote')
 	parser.add_argument('--sample-rate', type = int, default = 16_000)
 	parser.add_argument('--num-speakers', type = int, default = 2)
-	parser.add_argument('--processes', type=int, default=0)
+	parser.add_argument('--workers', type=int, default=0)
 	args = parser.parse_args()
 
 	main(args)
