@@ -30,7 +30,7 @@ def get_transcript(model, audio_path: str, sample_rate: int):
 def main(args):
 	# load vad
 	if args.vad_type == 'simple':
-		_vad = vad.PrimitiveVAD(device=args.device)
+		_vad = vad.SimpleVAD(device=args.device)
 	elif args.vad_type == 'webrtc':
 		_vad = vad.WebrtcVAD(sample_rate=args.sample_rate)
 	else:

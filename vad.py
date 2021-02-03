@@ -12,9 +12,8 @@ def resize_to_min_size_(*tensors, dim = -1):
 			t.set_(t.storage(), 0, sliced.size(), sliced.stride())
 
 
-class PrimitiveVAD:
+class SimpleVAD:
 	def __init__(self,
-	             device: str = 'cpu',
 	             kernel_size_smooth_silence: int = 4096,
 	             kernel_size_smooth_signal: int = 128,
 	             kernel_size_smooth_speaker: int = 4096,
@@ -22,7 +21,6 @@ class PrimitiveVAD:
 	             silence_relative_threshold: float = 0.2,
 	             eps: float = 1e-9,
 	             normalization_percentile: float = 0.9):
-		self.device = device
 		self.kernel_size_smooth_silence = kernel_size_smooth_silence
 		self.kernel_size_smooth_signal = kernel_size_smooth_signal
 		self.kernel_size_smooth_speaker = kernel_size_smooth_speaker
@@ -35,7 +33,6 @@ class PrimitiveVAD:
 
 	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
 		assert len(signal) <= 2
-		signal = signal.to(self.device)
 
 		padding = self.kernel_size_smooth_signal // 2
 		stride = 1
@@ -82,7 +79,7 @@ class WebrtcVAD:
 	def __init__(self, aggressiveness: int = 3, sample_rate: int = 8_000, window_size: float = 0.01):
 		assert sample_rate in [8_000, 16_000, 32_000, 48_000]
 		assert window_size in [0.01, 0.02, 0.03]
-		assert aggressiveness in [0, 1, 2, 3] #3 is the most aggressive
+		assert aggressiveness in [0, 1, 2, 3] # 3 is the most aggressive
 		self.sample_rate = sample_rate
 		self.window_size = window_size
 		self.frame_len = int(window_size * sample_rate)

@@ -9,14 +9,14 @@ import transcripts
 import multiprocessing as mp
 
 
-def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int, keep_intersections: bool, vad_type: str, device: str, workers: int):
+def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int, keep_intersections: bool, vad_type: str, workers: int):
 	if os.path.isdir(input_path):
 		audio_files = [os.path.join(input_path, audio_name) for audio_name in os.listdir(input_path)]
 	else:
 		audio_files = [input_path]
 
 	if vad_type == 'simple':
-		_vad = vad.PrimitiveVAD(device = device)
+		_vad = vad.SimpleVAD()
 	elif vad_type == 'webrtc':
 		_vad = vad.WebrtcVAD(sample_rate = sample_rate)
 	else:
@@ -47,7 +47,6 @@ if __name__ == '__main__':
 	parser.add_argument('--sample-rate', type = int, default = 8_000)
 	parser.add_argument('--keep-intersections', action = 'store_true', default = False)
 	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
-	parser.add_argument('--device', type = str, default = 'cpu')
 	parser.add_argument('--workers', type = int, default = 0)
 
 	args = vars(parser.parse_args())

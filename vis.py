@@ -153,7 +153,7 @@ def fmt_audio(audio_path, channel = 0):
 	return f'<audio id="audio{channel}" style="width:100%" controls src="{audio_data_uri(audio_path)}"></audio>\n'
 
 
-def viz_dataset(ref_path, hyp_path, html_path, debug_audio):
+def vis_dataset(ref_path, hyp_path, html_path, debug_audio):
 	assert ref_path is not None or hyp_path is not None
 
 	data_files = []
@@ -187,7 +187,7 @@ def viz_dataset(ref_path, hyp_path, html_path, debug_audio):
 	diarization(examples, html_path, debug_audio)
 
 
-def viz_metrics(metrics_path, html_path, debug_audio):
+def vis_metrics(metrics_path, html_path, debug_audio):
 	examples = []
 	with open(metrics_path) as metrics_file:
 		for line in metrics_file:
@@ -215,13 +215,13 @@ if __name__ == '__main__':
 	cmd.add_argument('--hyp-path', '--hyp')
 	cmd.add_argument('--output-path', '-o', dest = 'html_path', required = True)
 	cmd.add_argument('--audio', dest = 'debug_audio', action = 'store_true', default = False)
-	cmd.set_defaults(func = viz_dataset)
+	cmd.set_defaults(func = vis_dataset)
 
 	cmd = subparsers.add_parser('metrics')
 	cmd.add_argument('--metrics-path', '--metrics')
 	cmd.add_argument('--output-path', '-o', dest='html_path', required=True)
 	cmd.add_argument('--audio', dest='debug_audio', action='store_true', default=False)
-	cmd.set_defaults(func=viz_metrics)
+	cmd.set_defaults(func=vis_metrics)
 
 	args = vars(parser.parse_args())
 	func = args.pop('func')
