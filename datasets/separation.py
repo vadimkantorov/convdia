@@ -24,14 +24,14 @@ def slice_audio(dataset_path: str):
 			signal, _ = audio.read_audio(utterance['audio_path'], mono=False)
 
 
-def make_separation_dataset(input_path: str, output_path: str, sample_rate: int, utterance_duration: float, vad_type: str, device: str, processes: int, stride: int):
+def make_separation_dataset(input_path: str, output_path: str, sample_rate: int, utterance_duration: float, vad_type: str, processes: int, stride: int):
 	if os.path.isdir(input_path):
 		audio_files = [os.path.join(input_path, audio_name) for audio_name in os.listdir(input_path)]
 	else:
 		audio_files = [input_path]
 
 	if vad_type == 'simple':
-		_vad = vad.PrimitiveVAD(device = device)
+		_vad = vad.SimpleVAD()
 	elif vad_type == 'webrtc':
 		_vad = vad.WebrtcVAD(sample_rate = sample_rate)
 	else:
@@ -48,6 +48,7 @@ def make_separation_dataset(input_path: str, output_path: str, sample_rate: int,
 	else:
 		for audio_path in tqdm.tqdm(audio_files):
 			generate_utterances(audio_path, output_path, sample_rate, _vad, utterance_duration, stride)
+
 
 def generate_utterances(audio_path: str, output_path: str, sample_rate: int, vad, utterance_duration: float, stride: int):
 	signal, _ = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = vad.required_type, __array_wrap__ = vad.required_wrapper)
@@ -82,7 +83,6 @@ if __name__ == '__main__':
 	parser.add_argument('--sample-rate', type = int, default = 8_000)
 	parser.add_argument('--duration', dest = 'utterance_duration', type = float, default = 15.0)
 	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
-	parser.add_argument('--device', type = str, default = 'cpu')
 	parser.add_argument('--processes', type = int, default = 0)
 	parser.add_argument('--stride', type = int, default = 1000)
 
