@@ -10,3 +10,30 @@ We got:
 4. Wang Affinity for spectral clustering. Speaker Diarization with LSTM, Wang et al, https://arxiv.org/abs/1710.10468, https://github.com/wq2012/SpectralCluster/blob/master/spectralcluster/spectral_clusterer.py
 5. Basic Spectral Clustering implementation
 6. Jupyter Notebook showcasing affinity for short and long English audio
+
+# CLI commands
+
+Dataset construction
+```
+python -m dataset.diarization dataset -i folder_with_wavs/ -o dataset.json --workers 5
+```
+
+Run diarization model for dataset
+```
+python infer.py -i dataset.json -o hyp.json --model pyannote
+```
+
+Estimate metric values for model result
+```
+python metrics.py --ref dataset.json --hyp hyp.json -o metrics.json
+```
+
+Visualize model result
+```
+python vis.py dataset --ref dataset.json --hyp hyp.json -o vis.html --audio 
+```
+
+Visualize model result with metrics
+```
+python vis.py metrics --metrics-path metrics.json -o metrics.html
+```

@@ -50,7 +50,7 @@ def main(args):
 				example = json.loads(line)
 				if examples is not None and example['audio_path'] not in examples:
 					continue
-				mask = transcripts.intervals_to_mask(example.pop('markup'), example['sample_rate'], example['duration'])
+				mask = transcripts.intervals_to_mask(example.pop('intervals'), example['sample_rate'], example['duration'])
 				if examples is not None:
 					buffered = examples[example['audio_path']]
 					if example['sample_rate'] > buffered['sample_rate']:
@@ -81,8 +81,8 @@ def main(args):
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--ref-path', '-rp', required = True)
-	parser.add_argument('--hyp-path', '-hp', required = True)
+	parser.add_argument('--ref-path', '--ref', required = True)
+	parser.add_argument('--hyp-path', '--hyp', required = True)
 	parser.add_argument('--output-path', '-o')
 	parser.add_argument('--sample-rate', '-sr', type = int, default = 16_000)
 
