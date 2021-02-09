@@ -28,10 +28,10 @@ class SimpleVAD:
 		self.silence_relative_threshold = silence_relative_threshold
 		self.eps = eps
 		self.normalization_percentile = normalization_percentile
-		self.required_wrapper = torch.tensor
-		self.required_type = 'float32'
+		self.input_type = torch.tensor
+		self.input_dtype = 'float32'
 
-	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
+	def detect(self, signal: shapes.BT, allow_overlap: bool = False) -> shapes.BT:
 		assert len(signal) <= 2
 
 		padding = self.kernel_size_smooth_signal // 2
@@ -53,7 +53,7 @@ class SimpleVAD:
 		silence_relative = smoothed_for_silence / (self.eps + signal_max) < self.silence_relative_threshold
 		silence = silence_absolute | silence_relative
 
-		if keep_intersections or len(signal) == 1:
+		if allow_overlap or len(signal) == 1:
 			speech = ~silence
 		else:
 			diff_flat = smoothed_for_diff[0] - smoothed_for_diff[1]
@@ -84,36 +84,36 @@ class WebrtcVAD:
 		self.window_size = window_size
 		self.frame_len = int(window_size * sample_rate)
 		self.aggressiveness = aggressiveness
-		self.required_wrapper = np.array
-		self.required_type = 'int16'
+		self.input_type = np.array
+		self.input_dtype = 'int16'
 
-	def detect(self, signal: shapes.BT, keep_intersections: bool = False) -> shapes.BT:
+	def detect(self, signal: shapes.BT, allow_overlap: bool = False) -> shapes.BT:
 		assert signal.dtype == np.int16
 		import webrtcvad
 		speech_length = np.zeros(signal.shape, dtype = np.int)
 		for channel in range(len(signal)):
 			vad = webrtcvad.Vad(self.aggressiveness)
 			frames = np.pad(signal[channel], (0, self.frame_len - signal.shape[-1] % self.frame_len), 'constant', constant_values = (0, 0))
-			frames = np.split(frames, len(frames) // self.frame_len)
+			frames = bytearray(frames)
 			start = None
 			amount = 0
 
-			for i, frame in enumerate(frames):
-				is_speech = vad.is_speech(bytearray(frame), self.sample_rate)
+			for i in range(0, int(len(frames) / 2), self.frame_len):
+				is_speech = vad.is_speech(frames[i * 2: (i + self.frame_len) * 2], self.sample_rate)
 				if is_speech and start is None:
 					start = i
 					amount = 1
 				elif is_speech:
 					amount += 1
 				elif not is_speech and start is not None:
-					speech_length[channel, start * self.frame_len: (start+amount) * self.frame_len] = amount * self.frame_len
+					speech_length[channel, start: start + amount * self.frame_len] = amount * self.frame_len
 					start = None
 					amount = 0
 
 			if start is not None:
-				speech_length[channel, start * self.frame_len: (start + amount) * self.frame_len] = amount * self.frame_len
+				speech_length[channel, start: start + amount * self.frame_len] = amount * self.frame_len
 
-		if keep_intersections:
+		if allow_overlap:
 			speech = speech_length > 0
 		else:
 			speech_max_length = speech_length.max(axis=0)

@@ -50,7 +50,7 @@ def main(args):
 				example = json.loads(line)
 				if examples is not None and example['audio_path'] not in examples:
 					continue
-				mask = transcripts.intervals_to_mask(example.pop('markup'), example['sample_rate'], example['duration'])
+				mask = transcripts.intervals_to_mask(example.pop('intervals'), example['sample_rate'], example['duration'])
 				if examples is not None:
 					buffered = examples[example['audio_path']]
 					if example['sample_rate'] > buffered['sample_rate']:

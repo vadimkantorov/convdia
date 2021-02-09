@@ -25,12 +25,12 @@ python infer.py -i dataset.json -o hyp.json --model pyannote
 
 Estimate metric values for model result
 ```
-python metrics.py -ref dataset.json -hyp hyp.json -o metrics.json
+python metrics.py --ref dataset.json --hyp hyp.json -o metrics.json
 ```
 
 Visualize model result
 ```
-python vis.py dataset -ref dataset.json -hyp hyp.json -o vis.html --audio 
+python vis.py dataset --ref dataset.json --hyp hyp.json -o vis.html --audio 
 ```
 
 Visualize model result with metrics

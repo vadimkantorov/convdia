@@ -20,29 +20,27 @@ def normalized_symmetric_laplacian(W):
 
 
 class SpectralClusteringDiarizationModel:
-	def __init__(self, vad, vad_sensitivity: float, weights_path: str, device: str, sample_rate: int):
+	def __init__(self, vad, vad_sensitivity: float, weights_path: str, sample_rate: int):
 		self.vad = vad
 		self.vad_sensitivity = vad_sensitivity
-		self.device = device
 		self.sample_rate = sample_rate
 		self.embed_model = SincTDNN(sample_rate = sample_rate, padding_same = True, tdnn = dict(kernel_size_pool = 501, stride_pool = 101))
-		diag = self.embed_model.load_state_dict(torch.load(weights_path, map_location=device), strict=False)
+		diag = self.embed_model.load_state_dict(torch.load(weights_path, map_location='cpu'), strict=False)
 		assert diag.missing_keys == ['sincnet_.conv1d_.0.window', 'sincnet_.conv1d_.0.sinct'] and diag.unexpected_keys == ['tdnn_.segment7.weight', 'tdnn_.segment7.bias']
-		self.embed_model.eval().to(device)
+		self.embed_model.eval()
+
+	@property
+	def input_dtype(self):
+		return self.vad.input_dtype
+
+	def to(self, device):
+		self.embed_model = self.embed_model.to(device)
+		return self
 
 	def get_silence_mask(self, signal: shapes.BT):
-		smax = np.iinfo(np.int16).max
-		f2s = lambda signal, max=np.float32(smax): torch.mul(signal, max).to(torch.int16)
-		s2f = lambda signal, max=np.float32(smax): torch.div(signal, max, dtype = torch.float32)
-
-		if signal.dtype == torch.float32 and self.vad.required_type == 'int16':
-			signal = f2s(signal)
-		if signal.dtype == torch.int16 and self.vad.required_type == 'float32':
-			signal = s2f(signal)
-
-		if self.vad.required_wrapper == np.array:
+		if self.vad.input_type == np.array:
 			signal = signal.cpu().numpy()
-			silence_mask = torch.as_tensor(self.vad.detect(signal)[0], dtype = torch.bool, device = self.device)
+			silence_mask = torch.as_tensor(self.vad.detect(signal)[0], dtype = torch.bool, device = signal.device)
 		else:
 			silence_mask = self.vad.detect(signal)[0]
 		return silence_mask
@@ -60,7 +58,7 @@ class SpectralClusteringDiarizationModel:
 		with torch.no_grad():
 			silence: shapes.T = self.get_silence_mask(signal)
 
-			features: shapes.BCt = self.embed_model(signal.to(self.device), sample_rate)
+			features: shapes.BCt = self.embed_model(signal, sample_rate)
 			features_mask: shapes.t = self.convert_mask_to_emb_space(silence)
 
 			# compute affinity
@@ -74,7 +72,7 @@ class SpectralClusteringDiarizationModel:
 			num_eigvecs = 9
 			eigvecs = eigvecs[:, 1: (1 + num_eigvecs)]
 			eigvecs_max = eigvecs.max()
-			fiedler_vector = torch.zeros(features_mask.shape[-1], dtype = torch.float32, device = self.device)
+			fiedler_vector = torch.zeros(features_mask.shape[-1], dtype = torch.float32, device = signal.device)
 			fiedler_vector[features_mask] = eigvecs[:, 0] / eigvecs_max
 
 			# interpolate to T space
