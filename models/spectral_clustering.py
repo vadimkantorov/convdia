@@ -39,8 +39,9 @@ class SpectralClusteringDiarizationModel:
 
 	def get_silence_mask(self, signal: shapes.BT):
 		if self.vad.input_type == np.array:
+			device = signal.device
 			signal = signal.cpu().numpy()
-			silence_mask = torch.as_tensor(self.vad.detect(signal)[0], dtype = torch.bool, device = signal.device)
+			silence_mask = torch.as_tensor(self.vad.detect(signal)[0], dtype = torch.bool, device = device)
 		else:
 			silence_mask = self.vad.detect(signal)[0]
 		return silence_mask
