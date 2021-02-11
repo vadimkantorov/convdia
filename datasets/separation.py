@@ -24,7 +24,7 @@ def slice_audio(dataset_path: str):
 			signal, _ = audio.read_audio(utterance['audio_path'], mono=False)
 
 
-def make_separation_dataset(input_path: str, output_path: str, sample_rate: int, utterance_duration: float, vad_type: str, processes: int, stride: int):
+def make_separation_dataset(input_path: str, output_path: str, sample_rate: int, utterance_duration: float, vad_type: str, num_workers: int, stride: int):
 	if os.path.isdir(input_path):
 		audio_files = [os.path.join(input_path, audio_name) for audio_name in os.listdir(input_path)]
 	else:
@@ -41,9 +41,9 @@ def make_separation_dataset(input_path: str, output_path: str, sample_rate: int,
 	os.makedirs(os.path.join(output_path, 'spk1'), exist_ok = True)
 	os.makedirs(os.path.join(output_path, 'spk2'), exist_ok = True)
 
-	if processes > 0:
+	if num_workers > 0:
 		parametrized_generate = functools.partial(generate_utterances, output_path=output_path, sample_rate=sample_rate, vad=_vad, utterance_duration=utterance_duration, stride=stride)
-		with mp.Pool(processes=processes) as pool:
+		with mp.Pool(processes=num_workers) as pool:
 			list(tqdm.tqdm(pool.imap(parametrized_generate, audio_files), total=len(audio_files)))
 	else:
 		for audio_path in tqdm.tqdm(audio_files):
@@ -51,8 +51,8 @@ def make_separation_dataset(input_path: str, output_path: str, sample_rate: int,
 
 
 def generate_utterances(audio_path: str, output_path: str, sample_rate: int, vad, utterance_duration: float, stride: int):
-	signal, _ = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = vad.required_type, __array_wrap__ = vad.required_wrapper)
-	speaker_masks = vad.detect(signal, keep_intersections = True)
+	signal, _ = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = vad.input_dtype, __array_wrap__ = vad.input_type)
+	speaker_masks = vad.detect(signal, allow_overlap = True)
 	utterance_duration = math.ceil(utterance_duration * sample_rate)
 	assert utterance_duration % stride == 0
 
@@ -83,7 +83,7 @@ if __name__ == '__main__':
 	parser.add_argument('--sample-rate', type = int, default = 8_000)
 	parser.add_argument('--duration', dest = 'utterance_duration', type = float, default = 15.0)
 	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
-	parser.add_argument('--processes', type = int, default = 0)
+	parser.add_argument('--num-workers', type = int, default = 0)
 	parser.add_argument('--stride', type = int, default = 1000)
 
 	args = vars(parser.parse_args())
