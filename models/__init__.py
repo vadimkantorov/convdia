@@ -4,7 +4,7 @@ import math
 import torch
 from torch.nn import functional as F
 
-from models.spectral_clustering import SpectralClusteringDiarizationModel
+from models.spectral_clustering import SpectralClusteringDiarizationModel, cosine_kernel
 from models.pyannote import PyannoteDiarizationModel
 
 # Code is adapted from pyannote.audio. All credit goes to pyannote.audio
@@ -59,11 +59,6 @@ def cdist(A, B, squared = False, eps = 1e-4):
 	normBsq = B.pow(2).sum(dim = -1, keepdim = True)
 	res = torch.addmm(normBsq.transpose(-2, -1), A, B.transpose(-2, -1), alpha = -2).add_(normAsq)
 	return res.clamp_(min = 0) if squared else res.clamp_(min = eps).sqrt_()
-
-
-def cosine_kernel(E):
-	E = F.normalize(E, dim = 1)
-	return E @ E.t()
 
 
 def wang_affinity(E, gaussian_kernel_size = 9, gaussian_sigma = 1.0, row_threshold = 0.95, shrinking = 0.01):

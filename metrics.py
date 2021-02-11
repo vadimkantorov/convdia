@@ -50,7 +50,7 @@ def main(args):
 				example = json.loads(line)
 				if examples is not None and example['audio_path'] not in examples:
 					continue
-				mask = transcripts.intervals_to_mask(example.pop('intervals'), example['sample_rate'], example['duration'])
+				mask = transcripts.transcript_to_mask(example.pop('transcript'), example['sample_rate'], example['duration'])
 				if examples is not None:
 					buffered = examples[example['audio_path']]
 					if example['sample_rate'] > buffered['sample_rate']:
@@ -69,8 +69,8 @@ def main(args):
 		example['der'] = der(example['hyp'], example['ref'])
 		example['der_'] = der_(example['hyp'], example['ref'])
 		example['ser'] = ser(example['hyp'], example['ref'])
-		example['hyp'] = transcripts.mask_to_intervals(example['hyp'], example['sample_rate'])
-		example['ref'] = transcripts.mask_to_intervals(example['ref'], example['sample_rate'])
+		example['hyp'] = transcripts.mask_to_transcript(example['hyp'], example['sample_rate'])
+		example['ref'] = transcripts.mask_to_transcript(example['ref'], example['sample_rate'])
 		print(f"{i+1}/{len(examples)}. {example['audio_name']} DER:{example['der']:.2f} SER:{example['ser']:.2f}")
 
 	if args.output_path is not None:

@@ -21,7 +21,7 @@ def get_transcript(model, audio_path: str, sample_rate: int):
 	return dict(
 		audio_path = audio_path,
 		audio_name = os.path.basename(audio_path),
-		intervals = transcripts.mask_to_intervals(speaker_mask, sample_rate),
+		transcript = transcripts.mask_to_transcript(speaker_mask, sample_rate),
 		sample_rate = sample_rate,
 		duration = signal.shape[-1] / sample_rate
 	)
