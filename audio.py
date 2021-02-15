@@ -47,7 +47,7 @@ def compute_duration(audio_path, backend = None):
 			backend = 'ffmpeg'
 
 	if backend == 'scipy':
-		signal, sample_rate = read_audio(audio_path, sample_rate = None, dtype = None, mono = False, backend = 'scipy')
+		signal, sample_rate = read_audio(audio_path, sample_rate = None, dtype = None, mono = False)
 		return signal.shape[-1] / sample_rate
 
 	elif backend == 'ffmpeg':

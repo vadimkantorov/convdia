@@ -1,58 +1,78 @@
+import os
+import tqdm
+import json
 import argparse
 import torch
+import functools
 import models
 import shapes
 import audio
+import vad
 import transcripts
+import multiprocessing as mp
+
+
+def get_transcript(model, audio_path: str, sample_rate: int):
+	signal: shapes.BT; sample_rate: int
+	signal, sample_rate = audio.read_audio(audio_path, sample_rate=sample_rate, dtype=model.input_dtype, mono=True, __array_wrap__=torch.as_tensor)
+
+	speaker_mask = model.get_speaker_mask(signal, sample_rate)
+
+	return dict(
+		audio_path = audio_path,
+		audio_name = os.path.basename(audio_path),
+		transcript = transcripts.mask_to_transcript(speaker_mask, sample_rate),
+		sample_rate = sample_rate,
+		duration = signal.shape[-1] / sample_rate
+	)
+
 
 def main(args):
+	# load vad
+	if args.vad_type == 'simple':
+		_vad = vad.SimpleVAD()
+	elif args.vad_type == 'webrtc':
+		_vad = vad.WebrtcVAD(sample_rate=args.sample_rate)
+	else:
+		raise RuntimeError(f'VAD for type {args.vad_type} not found.')
+
 	# loading model
-	torch.set_grad_enabled(False)
-	model = models.SincTDNN(sample_rate = args.sample_rate, padding_same = True, tdnn = dict(kernel_size_pool = 501, stride_pool = 101))
-	print('stride:', model.stride / args.sample_rate, 'kernel_size:', model.kernel_size / args.sample_rate)
-	diag = model.load_state_dict(torch.load(args.weights_path), strict = False)
-	assert diag.missing_keys == ['sincnet_.conv1d_.0.window', 'sincnet_.conv1d_.0.sinct'] and diag.unexpected_keys == ['tdnn_.segment7.weight', 'tdnn_.segment7.bias']	
-	model.eval()
-	model.to(args.device)
+	if args.model == 'spectral':
+		model = models.SpectralClusteringDiarizationModel(vad = _vad, vad_sensitivity = 0.90, weights_path = args.weights_path, sample_rate = args.sample_rate).to(args.device)
+	elif args.model == 'pyannote':
+		model = models.PyannoteDiarizationModel(vad = _vad, vad_sensitivity = 0.90, sample_rate = args.sample_rate)
+	else:
+		raise RuntimeError(f'Diarization model for name "{args.model}" not found.')
 
-	# loading audio
-	# type: (shapes.BT, int) 
-	signal, sample_rate = audio.read_audio(args.audio_path, sample_rate = args.sample_rate, dtype = 'float32', mono = True, __array_wrap__ = torch.as_tensor)
-	print('read_audio done', signal.shape)
-	features : shapes.BCt = model(signal.to(args.device), args.sample_rate)
-	print('model done', features.shape)
+	if args.audio_path[-5:] == '.json':
+		with open(args.audio_path) as dataset_file:
+			paths = [json.loads(line)['audio_path'] for line in dataset_file]
+	else:
+		paths = [args.audio_path]
 
-	# compute affinity
-	emb = features[0].t()
-	K = models.wang_affinity(emb)
-	W = (K > 0.5).float() # ???
-	L = models.normalized_symmetric_laplacian(W)
-	eigvals, eigvecs = L.symeig(eigenvectors = True)
-	num_eigvecs = 1
-	eigvecs = eigvecs[:, 1 : (1 + num_eigvecs)]
-	eigvecs_max = eigvecs.max()
-	fiedler_vector = eigvecs[:, 0] / eigvecs_max
-	print('fiedler_vector', fiedler_vector.shape)
+	# make transcripts
+	if args.num_workers > 0:
+		parametrized_transcript = functools.partial(get_transcript, model, sample_rate = args.sample_rate)
+		with mp.Pool(processes=args.num_workers) as pool:
+			_transcripts = list(tqdm.tqdm(pool.imap(parametrized_transcript, paths), total=len(paths)))
+	else:
+		_transcripts = [get_transcript(model, path, args.sample_rate) for path in tqdm.tqdm(paths)]
 
-	silence = torch.zeros_like(fiedler_vector, dtype = torch.bool)
-	speaker1 = fiedler_vector < 0
-	speaker2 = fiedler_vector > 0
+	with open(args.transcript_path, 'w') as output_file:
+		output_file.write('\n'.join(json.dumps(t, ensure_ascii=False) for t in _transcripts))
 
-	speaker_mask = torch.stack([silence, speaker1, speaker2])
-
-	# save transcript
-	transcript = transcripts.from_speaker_mask(speaker_mask, sample_rate)
-	print(transcripts.save(args.transcript_path, transcript))
-	
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--audio-path', '-i')
-	parser.add_argument('--transcript-path', '-o')
-	parser.add_argument('--weights-path', default = 'emb_voxceleb/train/X.SpeakerDiarization.VoxCeleb.train/weights/0326.pt')
-	parser.add_argument('--device', default = 'cuda')
+	parser.add_argument('--audio-path', '-i', required=True)
+	parser.add_argument('--transcript-path', '-o', required=True)
+	parser.add_argument('--weights-path', default = '_emb_voxceleb/train/X.SpeakerDiarization.VoxCeleb.train/weights/0326.pt')
+	parser.add_argument('--device', default = 'cpu')
+	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
+	parser.add_argument('--model', choices = ['pyannote', 'spectral'], default = 'pyannote')
 	parser.add_argument('--sample-rate', type = int, default = 16_000)
 	parser.add_argument('--num-speakers', type = int, default = 2)
+	parser.add_argument('--num-workers', type=int, default=0)
 	args = parser.parse_args()
 
 	main(args)

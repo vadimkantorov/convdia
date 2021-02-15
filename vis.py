@@ -1,17 +1,8 @@
-import os
-import collections
-import glob
+import argparse
 import json
 import io
-import sys
-import math
-import typing
-import itertools
-import argparse
 import base64
 import matplotlib.pyplot as plt
-import torch
-import torch.nn.functional as F
 import audio
 import transcripts
 
@@ -98,7 +89,7 @@ def diarization(diarization_transcript, html_path, debug_audio):
 			begin, end = 0.0, transcripts.compute_duration(dt)
 			for refhyp in ['ref', 'hyp']:
 				if refhyp in dt:
-					html.write('<tr class="border-{refhyp}"><td class="nowrap">{audio_name}</td><td>{end:.02f}</td><td>{refhyp}</td><td>{ser:.02f}</td><td>{der:.02f}</td><td>{der_:.02f}</td><td rospan="{rowspan}">{audio_html}</td><td>{barcode}</td></tr>\n'.format(audio_name = dt['audio_name'], audio_html = audio_html if refhyp == 'ref' else '', rowspan = 2 if refhyp == 'ref' else 1, refhyp = refhyp, end = end, ser = dt.get('ser', -1.0), der = dt.get('der', -1.0), der_ = dt.get('der_', -1.0), barcode = fmt_img_speaker_barcode(dt[refhyp], begin = begin, end = end, onclick = None if debug_audio else '', dataset = dict(channel = i))))
+					html.write('<tr class="border-{refhyp}"><td class="nowrap">{audio_name}</td><td>{end:.02f}</td><td>{refhyp}</td><td>{ser:.02f}</td><td>{der:.02f}</td><td>{der_:.02f}</td><td rospan="{rowspan}">{audio_html}</td><td>{barcode}</td></tr>\n'.format(audio_name = dt['audio_name'], audio_html = audio_html if refhyp == 'ref' or 'ref' not in dt else '', rowspan = 2 if refhyp == 'ref' else 1, refhyp = refhyp, end = end, ser = dt.get('ser', -1.0), der = dt.get('der', -1.0), der_ = dt.get('der_', -1.0), barcode = fmt_img_speaker_barcode(dt[refhyp], begin = begin, end = end, onclick = None if debug_audio else '', dataset = dict(channel = i))))
 
 		html.write('</table></body></html>')
 	return html_path
@@ -127,25 +118,6 @@ def fmt_img_speaker_barcode(transcript, begin = None, end = None, colors = speak
 	return f'<img onclick="{onclick}" src="data:image/jpeg;base64,{uri_speaker_barcode}" style="width:100%" data-begin="{begin}" data-end="{end}" {dataset}></img>'
 
 
-def fmt_svg_speaker_barcode(transcript, begin, end, colors = speaker_colors, max_segment_seconds = 60, onclick = None):
-	if onclick is None:
-		onclick = 'onclick_svg(event)'
-	color = lambda s: colors[s] if s < len(colors) else transcripts.speaker_missing
-	html = ''
-	
-	segments = transcripts.segment_by_time(transcript, max_segment_seconds = max_segment_seconds, break_on_speaker_change = False, break_on_channel_change = False)
-	
-	for segment in segments:
-		summary = transcripts.summary(segment)
-		duration = transcripts.compute_duration(summary)
-		if duration <= max_segment_seconds:
-			duration = max_segment_seconds
-		header = '<div style="width: 100%; height: 15px; border: 1px black solid"><svg viewbox="0 0 1 1" style="width:100%; height:100%" preserveAspectRatio="none">'
-		body = '\n'.join('<rect data-begin="{begin}" data-end="{end}" x="{x}" width="{width}" height="1" style="fill:{color}" onclick="{onclick}"><title>speaker{speaker} | {begin:.2f} - {end:.2f} [{duration:.2f}]</title></rect>'.format(onclick = onclick, x = (t['begin'] - summary['begin']) / duration, width = (t['end'] - t['begin']) / duration, color = color(t['speaker']), duration = transcripts.compute_duration(t), **t) for t in transcript)
-		footer = '</svg></div>'
-		html += header + body + footer
-	return html
-
 def audio_data_uri(audio_path, sample_rate = None, audio_backend = 'scipy', audio_format = 'wav'):
 	data_uri = lambda audio_format, audio_bytes: f'data:audio/{audio_format};base64,' + base64.b64encode(audio_bytes).decode()
 	
@@ -157,6 +129,72 @@ def audio_data_uri(audio_path, sample_rate = None, audio_backend = 'scipy', audi
 		
 	return data_uri(audio_format = audio_format, audio_bytes = audio_bytes)
 
+
 def fmt_audio(audio_path, channel = 0):
 	return f'<audio id="audio{channel}" style="width:100%" controls src="{audio_data_uri(audio_path)}"></audio>\n'
 
+
+def vis_dataset(ref_path, hyp_path, html_path, debug_audio):
+	assert ref_path is not None or hyp_path is not None
+
+	data_files = []
+	if ref_path is not None:
+		data_files.append(('ref', ref_path))
+	if hyp_path is not None:
+		data_files.append(('hyp', hyp_path))
+
+	examples = None
+	for hypref, path in data_files:
+		buffer = dict()
+		with open(path) as data_file:
+			for line in data_file:
+				example = json.loads(line)
+				if examples is not None and example['audio_path'] not in examples:
+					continue
+				transcript = [t for t in example['transcript'] if t['speaker'] != 0]
+				transcript = sorted(transcript, key = lambda x: x['end'])
+				if examples is not None:
+					buffer[example['audio_path']] = examples[example['audio_path']]
+					buffer[example['audio_path']][hypref] = transcript
+				else:
+					example.pop('transcript')
+					buffer[example['audio_path']] = example
+					buffer[example['audio_path']][hypref] = transcript
+		examples = buffer
+	examples = sorted(examples.values(), key = lambda x: x['audio_name'])
+
+	diarization(examples, html_path, debug_audio)
+
+
+def vis_metrics(metrics_path, html_path, debug_audio):
+	examples = []
+	with open(metrics_path) as metrics_file:
+		for line in metrics_file:
+			example = json.loads(line)
+			example['hyp'] = [t for t in example['hyp'] if t['speaker'] != 0]
+			example['ref'] = [t for t in example['ref'] if t['speaker'] != 0]
+			examples.append(example)
+	examples = sorted(examples, key=lambda x: x['audio_name'])
+	diarization(examples, html_path, debug_audio)
+
+
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser()
+	subparsers = parser.add_subparsers()
+
+	cmd = subparsers.add_parser('datasets')
+	cmd.add_argument('--ref-path', '--ref')
+	cmd.add_argument('--hyp-path', '--hyp')
+	cmd.add_argument('--output-path', '-o', dest = 'html_path', required = True)
+	cmd.add_argument('--audio', dest = 'debug_audio', action = 'store_true', default = False)
+	cmd.set_defaults(func = vis_dataset)
+
+	cmd = subparsers.add_parser('metrics')
+	cmd.add_argument('--metrics-path', '--metrics')
+	cmd.add_argument('--output-path', '-o', dest='html_path', required=True)
+	cmd.add_argument('--audio', dest='debug_audio', action='store_true', default=False)
+	cmd.set_defaults(func=vis_metrics)
+
+	args = vars(parser.parse_args())
+	func = args.pop('func')
+	func(**args)
