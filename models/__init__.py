@@ -21,12 +21,6 @@ def rle1d(tensor):
 	return starts, lengths, values
 
 
-def normalized_symmetric_laplacian(W):
-	# https://en.wikipedia.org/wiki/Laplacian_matrix#Symmetric_normalized_Laplacian
-	D_sqrt = W.sum(dim = -1).sqrt()
-	return torch.eye(W.shape[-1], device = W.device, dtype = W.dtype) - W / D_sqrt.unsqueeze(-1) / D_sqrt.unsqueeze(-2)
-
-
 def pdist(A, squared = False, eps = 1e-4):
 	normAsq = A.pow(2).sum(dim = -1, keepdim = True)
 	res = torch.addmm(normAsq.transpose(-2, -1), A, A.transpose(-2, -1), alpha = -2).add_(normAsq)
@@ -69,13 +63,6 @@ def kmeans(E, k = 5, num_iter = 10):
 		centroids.zero_().scatter_add_(0, assignment.unsqueeze(-1).expand(-1, E.shape[-1]), E)
 		centroids /= assignment.bincount(minlength = k).unsqueeze(-1)
 	return assignment
-
-
-def spectral_clustering(L, e = 10, k = 5, **kwargs):
-	eigvals, eigvecs = L.symeig(eigenvectors = True)
-	E = eigvecs[:, -e -1 : -1].flip(dims = (1,))
-	assignment = kmeans(E, k = k, **kwargs)
-	return assignment, E
 
 
 def reassign_speaker_id(speaker_id, targets):
