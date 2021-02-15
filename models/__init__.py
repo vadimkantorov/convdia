@@ -61,34 +61,6 @@ def cdist(A, B, squared = False, eps = 1e-4):
 	return res.clamp_(min = 0) if squared else res.clamp_(min = eps).sqrt_()
 
 
-def wang_affinity(E, gaussian_kernel_size = 9, gaussian_sigma = 1.0, row_threshold = 0.95, shrinking = 0.01):
-	# Speaker Diarization with LSTM, Wang et al, https://arxiv.org/abs/1710.10468
-	# https://github.com/wq2012/SpectralCluster/blob/master/spectralcluster/spectral_clusterer.py
-	A = cosine_kernel(E)
-
-	# crop diagonalw
-	A.fill_diagonal_(0)
-	A.diagonal().copy_(A.max(dim = 1).values)
-
-	## gaussian blur
-	#A = F.conv2d(A[None, None, ...], gaussian_kernel([gaussian_kernel_size] * 2, [gaussian_sigma] * 2).type_as(A))[0, 0, ...]
-
-	# row-wise shrinking
-	A = torch.where(A > row_threshold * A.max(dim = 1, keepdim = True).values, A, shrinking * A)
-
-	# symmetrization
-	A = torch.max(A, A.t())
-
-	# diffusion
-	A = A @ A
-
-	# row-wise normalization
-	A = A / A.max(dim = 1, keepdim = True).values
-	A = torch.max(A, A.t())
-
-	return A
-
-
 def kmeans(E, k = 5, num_iter = 10):
 	torch.manual_seed(1)
 	centroids = E[torch.randperm(len(E), device = E.device)[:k]]
