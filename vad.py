@@ -145,17 +145,18 @@ class SileroVAD:
 		return model.to(self.device), get_speech_ts
 
 	def detect(self, signal: shapes.BT, allow_overlap: bool = False) -> shapes.BT:
+		signal = signal.to(self.device)
 		model, get_speech_ts = self._get_model()
-		speech_length = torch.zeros(*signal.shape, dtype = torch.int32)
+		speech_length = torch.zeros_like(signal, dtype = torch.int64)
 		for i, channel_signal in enumerate(signal):
-			intervals = get_speech_ts(channel_signal.to(self.device), model)
+			intervals = get_speech_ts(channel_signal, model)
 			for interval in intervals:
-				speech_length[i, interval['start']:interval['end']] = torch.arange(0, interval['end'] - interval['start'], dtype = torch.int32)
+				speech_length[i, interval['start']:interval['end']] = torch.arange(0, interval['end'] - interval['start'], dtype = torch.int64)
 
 		if allow_overlap:
 			speech = speech_length > 0
 		else:
-			speech_max_length = speech_length.max(dim=0).values
+			speech_max_length = speech_length.amax(dim=0)
 			speech = (speech_length == speech_max_length.unsqueeze(0)) & (speech_max_length != 0)
 		speech = torch.cat([~speech.any(dim = 0).unsqueeze(0), speech])
 		return speech
