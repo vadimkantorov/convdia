@@ -33,6 +33,8 @@ def main(args):
 		_vad = vad.SimpleVAD()
 	elif args.vad_type == 'webrtc':
 		_vad = vad.WebrtcVAD(sample_rate=args.sample_rate)
+	elif vad_type == 'silero':
+		_vad = vad.SileroVAD(sample_rate=args.sample_rate)
 	else:
 		raise RuntimeError(f'VAD for type {args.vad_type} not found.')
 
@@ -68,7 +70,7 @@ if __name__ == '__main__':
 	parser.add_argument('--transcript-path', '-o', required=True)
 	parser.add_argument('--weights-path', default = '_emb_voxceleb/train/X.SpeakerDiarization.VoxCeleb.train/weights/0326.pt')
 	parser.add_argument('--device', default = 'cpu')
-	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
+	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc', 'silero'], default = 'webrtc')
 	parser.add_argument('--model', choices = ['pyannote', 'spectral'], default = 'pyannote')
 	parser.add_argument('--sample-rate', type = int, default = 16_000)
 	parser.add_argument('--num-speakers', type = int, default = 2)

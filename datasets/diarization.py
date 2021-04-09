@@ -4,6 +4,7 @@ import tqdm
 import argparse
 import vad
 import audio
+import torch
 import functools
 import transcripts
 import multiprocessing as mp
@@ -19,6 +20,8 @@ def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int
 		_vad = vad.SimpleVAD()
 	elif vad_type == 'webrtc':
 		_vad = vad.WebrtcVAD(sample_rate = sample_rate)
+	elif vad_type == 'silero':
+		_vad = vad.SileroVAD(sample_rate = sample_rate)
 	else:
 		raise RuntimeError(f'VAD for type {vad_type} not found.')
 
@@ -36,6 +39,8 @@ def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int
 def generate_transcript(audio_path: str, sample_rate: int, vad, allow_overlap: bool):
 	signal, _ = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = vad.input_dtype, __array_wrap__ = vad.input_type)
 	speaker_masks = vad.detect(signal, allow_overlap)
+	if vad.input_type == torch.tensor:
+		speaker_masks = speaker_masks.cpu().numpy()
 	transcript = transcripts.mask_to_transcript(speaker_masks, sample_rate)
 	return dict(audio_path = audio_path, audio_name = os.path.basename(audio_path), transcript = transcript, sample_rate = sample_rate, duration = signal.shape[-1] / sample_rate)
 
@@ -46,7 +51,7 @@ if __name__ == '__main__':
 	parser.add_argument('--output-path', '-o', required=True)
 	parser.add_argument('--sample-rate', type = int, default = 8_000)
 	parser.add_argument('--allow-overlap', action = 'store_true', default = False)
-	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
+	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc', 'silero'], default = 'webrtc')
 	parser.add_argument('--num-workers', type = int, default = 0)
 
 	args = vars(parser.parse_args())
