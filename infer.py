@@ -33,6 +33,8 @@ def main(args):
 		_vad = vad.SimpleVAD()
 	elif args.vad_type == 'webrtc':
 		_vad = vad.WebrtcVAD(sample_rate=args.sample_rate)
+	elif vad_type == 'silero':
+		_vad = vad.SileroVAD(sample_rate=args.sample_rate)
 	else:
 		raise RuntimeError(f'VAD for type {args.vad_type} not found.')
 

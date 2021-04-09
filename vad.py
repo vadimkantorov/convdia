@@ -120,3 +120,46 @@ class WebrtcVAD:
 			speech = (speech_length == speech_max_length[np.newaxis, :]) & (speech_max_length != 0)
 		speech = np.vstack([~speech.any(axis = 0), speech])
 		return speech
+
+
+class SileroVAD:
+	def __init__(self, sample_rate: int = 8_000, use_micro = True, device = 'cpu'):
+		self.device = device
+		self.sample_rate = sample_rate
+		if sample_rate == 8_000:
+			assert use_micro, 'Only "micro" model exists for 8 kHz sample rate.'
+			self.model_name = 'silero_vad_micro_8k'
+		elif sample_rate == 16_000 and use_micro:
+			self.model_name = 'silero_vad_micro'
+		elif sample_rate == 16_000 and not use_micro:
+			self.model_name = 'silero_vad'
+		else:
+			raise RuntimeError(f'No model exist for sample rate {sample_rate} Hz.')
+
+		self.input_type = torch.tensor
+		self.input_dtype = 'float32'
+
+	def _get_model(self):
+		model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model=self.model_name, force_reload=True)
+		get_speech_ts, _, _, _, _, _ = utils
+		return model.to(self.device), get_speech_ts
+
+	def detect(self, signal: shapes.BT, allow_overlap: bool = False) -> shapes.BT:
+		model, get_speech_ts = self._get_model()
+		speech_length = torch.zeros(*signal.shape, dtype = torch.int32)
+		for i, channel_signal in enumerate(signal):
+			intervals = get_speech_ts(channel_signal.to(self.device), model)
+			for interval in intervals:
+				speech_length[i, interval['start']:interval['end']] = torch.arange(0, interval['end'] - interval['start'], dtype = torch.int32)
+
+		if allow_overlap:
+			speech = speech_length > 0
+		else:
+			speech_max_length = speech_length.max(dim=0).values
+			speech = (speech_length == speech_max_length.unsqueeze(0)) & (speech_max_length != 0)
+		speech = torch.cat([~speech.any(dim = 0).unsqueeze(0), speech])
+		return speech
+
+
+
+

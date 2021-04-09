@@ -5,7 +5,7 @@ import librosa
 import subprocess
 
 
-def read_audio(audio_path, sample_rate, mono = False, dtype = 'float32', __array_wrap__ = None):
+def read_audio(audio_path, sample_rate = None, mono = False, dtype = 'float32', __array_wrap__ = None):
 	smax = np.iinfo(np.int16).max
 	f2s_numpy = lambda signal, max = np.float32(smax): np.multiply(signal, max).astype('int16')
 	s2f_numpy = lambda signal, max = np.float32(smax): np.divide(signal, max, dtype = 'float32')
@@ -20,10 +20,12 @@ def read_audio(audio_path, sample_rate, mono = False, dtype = 'float32', __array
 		assert signal.dtype == np.float32
 		signal = signal.mean(0, keepdims = True)
 
-	if sample_rate_ != sample_rate:
+	if sample_rate is not None and sample_rate_ != sample_rate:
 		assert signal.dtype == np.float32
 		mono_ = len(signal) == 1
 		signal = librosa.resample(signal[0 if mono_ else ...], sample_rate_, sample_rate)[None if mono_ else ...]
+	else:
+		sample_rate = sample_rate_
 
 	return signal if __array_wrap__ is None else __array_wrap__(signal), sample_rate
 

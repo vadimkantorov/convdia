@@ -8,7 +8,7 @@ speaker_missing = 0
 
 
 def intervals_to_mask(intervals, sample_rate: int, duration: float):
-	mask = torch.zeros(len(intervals), math.ceil(sample_rate * duration), dtype = torch.bool)
+	mask = torch.zeros(max(x['speaker'] for x in intervals) + 1, math.ceil(sample_rate * duration), dtype = torch.bool)
 	for interval in intervals:
 		mask[interval['speaker'], int(interval['begin'] * sample_rate): int(interval['end'] * sample_rate)] = True
 	return mask

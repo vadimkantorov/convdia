@@ -34,6 +34,8 @@ def make_separation_dataset(input_path: str, output_path: str, sample_rate: int,
 		_vad = vad.SimpleVAD()
 	elif vad_type == 'webrtc':
 		_vad = vad.WebrtcVAD(sample_rate = sample_rate)
+	elif vad_type == 'silero':
+		_vad = vad.SileroVAD(sample_rate = sample_rate)
 	else:
 		raise RuntimeError(f'VAD for type {vad_type} not found.')
 
