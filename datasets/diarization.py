@@ -26,23 +26,23 @@ def make_diarization_dataset(input_path: str, output_path: str, sample_rate: int
 		raise RuntimeError(f'VAD for type {vad_type} not found.')
 
 	if num_workers > 0:
-		parametrized_generate = functools.partial(generate_intervals, sample_rate=sample_rate, vad=_vad, allow_overlap=allow_overlap)
+		parametrized_generate = functools.partial(generate_transcript, sample_rate=sample_rate, vad=_vad, allow_overlap=allow_overlap)
 		with mp.Pool(processes=num_workers) as pool:
 			dataset = list(tqdm.tqdm(pool.imap(parametrized_generate, audio_files), total=len(audio_files)))
 	else:
-		dataset = [generate_intervals(audio_path, sample_rate, _vad, allow_overlap) for audio_path in tqdm.tqdm(audio_files)]
+		dataset = [generate_transcript(audio_path, sample_rate, _vad, allow_overlap) for audio_path in tqdm.tqdm(audio_files)]
 
 	with open(output_path, 'w') as output:
 		output.write('\n'.join([json.dumps(example, ensure_ascii = False) for example in dataset]))
 
 
-def generate_intervals(audio_path: str, sample_rate: int, vad, allow_overlap: bool):
+def generate_transcript(audio_path: str, sample_rate: int, vad, allow_overlap: bool):
 	signal, _ = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = vad.input_dtype, __array_wrap__ = vad.input_type)
 	speaker_masks = vad.detect(signal, allow_overlap)
 	if vad.input_type == torch.tensor:
 		speaker_masks = speaker_masks.cpu().numpy()
-	intervals = transcripts.mask_to_intervals(speaker_masks, sample_rate)
-	return dict(audio_path = audio_path, audio_name = os.path.basename(audio_path), intervals = intervals, sample_rate = sample_rate, duration = signal.shape[-1] / sample_rate)
+	transcript = transcripts.mask_to_transcript(speaker_masks, sample_rate)
+	return dict(audio_path = audio_path, audio_name = os.path.basename(audio_path), transcript = transcript, sample_rate = sample_rate, duration = signal.shape[-1] / sample_rate)
 
 
 if __name__ == '__main__':

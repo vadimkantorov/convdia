@@ -151,15 +151,15 @@ def vis_dataset(ref_path, hyp_path, html_path, debug_audio):
 				example = json.loads(line)
 				if examples is not None and example['audio_path'] not in examples:
 					continue
-				intervals = [t for t in example['intervals'] if t['speaker'] != 0]
-				intervals = sorted(intervals, key = lambda x: x['end'])
+				transcript = [t for t in example['transcript'] if t['speaker'] != 0]
+				transcript = sorted(transcript, key = lambda x: x['end'])
 				if examples is not None:
 					buffer[example['audio_path']] = examples[example['audio_path']]
-					buffer[example['audio_path']][hypref] = intervals
+					buffer[example['audio_path']][hypref] = transcript
 				else:
-					example.pop('intervals')
+					example.pop('transcript')
 					buffer[example['audio_path']] = example
-					buffer[example['audio_path']][hypref] = intervals
+					buffer[example['audio_path']][hypref] = transcript
 		examples = buffer
 	examples = sorted(examples.values(), key = lambda x: x['audio_name'])
 

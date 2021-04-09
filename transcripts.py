@@ -7,29 +7,29 @@ import shapes
 speaker_missing = 0
 
 
-def intervals_to_mask(intervals, sample_rate: int, duration: float):
-	mask = torch.zeros(max(x['speaker'] for x in intervals) + 1, math.ceil(sample_rate * duration), dtype = torch.bool)
-	for interval in intervals:
-		mask[interval['speaker'], int(interval['begin'] * sample_rate): int(interval['end'] * sample_rate)] = True
+def transcript_to_mask(transcript, sample_rate: int, duration: float):
+	mask = torch.zeros(len(transcript), math.ceil(sample_rate * duration), dtype = torch.bool)
+	for t in transcript:
+		mask[t['speaker'], int(t['begin'] * sample_rate): int(t['end'] * sample_rate)] = True
 	return mask
 
 
-def mask_to_intervals(speaker_masks: shapes.BT, sample_rate: int):
-	intervals = []
+def mask_to_transcript(speaker_masks: shapes.BT, sample_rate: int):
+	transcript = []
 	for speaker, mask in enumerate(speaker_masks):
-		interval = None
+		t = None
 		for i, sample in enumerate(mask):
-			if sample and interval is None:
-				interval = dict(speaker = speaker, begin = i / sample_rate)
-			elif not sample and interval is not None:
-				interval['end'] = i / sample_rate
-				intervals.append(interval)
-				interval = None
-		if interval is not None:
-			interval['end'] = i / sample_rate
-			intervals.append(interval)
-	intervals = sorted(intervals, key = lambda x: x['end'])
-	return intervals
+			if sample and t is None:
+				t = dict(speaker = speaker, begin = i / sample_rate)
+			elif not sample and t is not None:
+				t['end'] = i / sample_rate
+				transcript.append(t)
+				t = None
+		if t is not None:
+			t['end'] = i / sample_rate
+			transcript.append(t)
+	transcript = sorted(transcript, key = lambda x: x['end'])
+	return transcript
 
 
 def compute_duration(t, hours = False):

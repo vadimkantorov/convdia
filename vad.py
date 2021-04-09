@@ -159,7 +159,3 @@ class SileroVAD:
 			speech = (speech_length == speech_max_length.unsqueeze(0)) & (speech_max_length != 0)
 		speech = torch.cat([~speech.any(dim = 0).unsqueeze(0), speech])
 		return speech
-
-
-
-

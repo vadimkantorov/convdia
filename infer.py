@@ -21,7 +21,7 @@ def get_transcript(model, audio_path: str, sample_rate: int):
 	return dict(
 		audio_path = audio_path,
 		audio_name = os.path.basename(audio_path),
-		intervals = transcripts.mask_to_intervals(speaker_mask, sample_rate),
+		transcript = transcripts.mask_to_transcript(speaker_mask, sample_rate),
 		sample_rate = sample_rate,
 		duration = signal.shape[-1] / sample_rate
 	)
@@ -70,7 +70,7 @@ if __name__ == '__main__':
 	parser.add_argument('--transcript-path', '-o', required=True)
 	parser.add_argument('--weights-path', default = '_emb_voxceleb/train/X.SpeakerDiarization.VoxCeleb.train/weights/0326.pt')
 	parser.add_argument('--device', default = 'cpu')
-	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
+	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc', 'silero'], default = 'webrtc')
 	parser.add_argument('--model', choices = ['pyannote', 'spectral'], default = 'pyannote')
 	parser.add_argument('--sample-rate', type = int, default = 16_000)
 	parser.add_argument('--num-speakers', type = int, default = 2)
