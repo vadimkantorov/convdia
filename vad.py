@@ -2,6 +2,7 @@ import shapes
 import numpy as np
 import torch
 import torch.nn.functional as F
+import functools
 
 
 def resize_to_min_size_(*tensors, dim = -1):
@@ -139,6 +140,7 @@ class SileroVAD:
 		self.input_type = torch.tensor
 		self.input_dtype = 'float32'
 
+	@functools.lru_cache()
 	def _get_model(self):
 		model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model=self.model_name, force_reload=True)
 		get_speech_ts, _, _, _, _, _ = utils
