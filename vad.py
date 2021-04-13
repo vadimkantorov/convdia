@@ -142,7 +142,7 @@ class SileroVAD:
 
 	@functools.lru_cache()
 	def _get_model(self):
-		model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model=self.model_name, force_reload=True)
+		model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model=self.model_name, batch_size=2000)
 		get_speech_ts, _, _, _, _, _ = utils
 		return model.to(self.device), get_speech_ts
 

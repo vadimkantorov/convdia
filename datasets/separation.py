@@ -5,6 +5,7 @@ import argparse
 import vad
 import audio
 import functools
+import torch
 import numpy as np
 import multiprocessing as mp
 
@@ -34,12 +35,14 @@ def make_separation_dataset(input_path: str, output_path: str, sample_rate: int,
 			list(tqdm.tqdm(pool.imap(parametrized_generate, audio_files), total=len(audio_files)))
 	else:
 		for audio_path in tqdm.tqdm(audio_files):
-			generate_utterances(audio_path, output_path, sample_rate, _vad, utterance_duration, stride)
+			generate_utterances(audio_path, output_path, sample_rate, _vad, utterance_duration, stride, min_utterance_score)
 
 
 def generate_utterances(audio_path: str, output_path: str, sample_rate: int, vad, utterance_duration: float, stride: int, min_utterance_score: float):
 	signal, _ = audio.read_audio(audio_path, sample_rate = sample_rate, mono = False, dtype = vad.input_dtype, __array_wrap__ = vad.input_type)
 	speaker_masks = vad.detect(signal, allow_overlap = True)
+	if vad.input_type == torch.tensor:
+		speaker_masks = speaker_masks.cpu().numpy()
 	utterance_duration = math.ceil(utterance_duration * sample_rate)
 	assert utterance_duration % stride == 0
 
@@ -69,10 +72,10 @@ if __name__ == '__main__':
 	parser.add_argument('--output-path', '-o', required=True)
 	parser.add_argument('--sample-rate', type = int, default = 8_000)
 	parser.add_argument('--duration', dest = 'utterance_duration', type = float, default = 15.0)
-	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc'], default = 'webrtc')
+	parser.add_argument('--vad', dest = 'vad_type', choices = ['simple', 'webrtc', 'silero'], default = 'webrtc')
 	parser.add_argument('--num-workers', type = int, default = 0)
 	parser.add_argument('--stride', type = int, default = 1000)
-	parser.add_argument('--min-utterance-score', type = float, default = 0.25, help = 'Threshold value to accept utterance. Utterance score: speakers ratio in range [0;1] - silence ratio in range [0;1].')
+	parser.add_argument('--min-utterance-score', dest = 'min_utterance_score', type = float, default = 0.25, help = 'Threshold value to accept utterance. Utterance score: speakers ratio in range [0;1] - silence ratio in range [0;1].')
 
 	args = vars(parser.parse_args())
 	make_separation_dataset(**args)

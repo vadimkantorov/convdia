@@ -47,7 +47,9 @@ class PyannoteDiarizationModel:
 					speakers_id[speaker] = num_speakers
 					num_speakers += 1
 				speaker_id = speakers_id[speaker]
-				speaker_mask[speaker_id, int(turn.start * sample_rate) : int(turn.end * sample_rate)] = True
+				# only 2 speaker markup supports now
+				if speaker_id < 2:
+					speaker_mask[speaker_id, int(turn.start * sample_rate) : int(turn.end * sample_rate)] = True
 			silence = silence | ~speaker_mask.any(dim = 0)
 			speaker_mask = torch.cat([silence.unsqueeze(0), speaker_mask & (~silence.unsqueeze(0))])
 		return speaker_mask

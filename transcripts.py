@@ -8,7 +8,8 @@ speaker_missing = 0
 
 
 def transcript_to_mask(transcript, sample_rate: int, duration: float):
-	mask = torch.zeros(len(transcript), math.ceil(sample_rate * duration), dtype = torch.bool)
+	num_speakers = max(t['speaker'] for t in transcript)+1
+	mask = torch.zeros(max(3, num_speakers), math.ceil(sample_rate * duration), dtype = torch.bool)
 	for t in transcript:
 		mask[t['speaker'], int(t['begin'] * sample_rate): int(t['end'] * sample_rate)] = True
 	return mask
