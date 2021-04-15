@@ -4,12 +4,17 @@ import soundfile
 import librosa
 import subprocess
 
+def f2s_numpy(signal):
+	smax = np.iinfo(np.int16).max
+	fmax = np.float32(smax)
+	return np.multiply(signal, fmax).astype('int16')
+
+def s2f_numpy(signal):
+	smax = np.iinfo(np.int16).max
+	fmax = np.float32(smax)
+	return np.divide(signal, fmax, dtype = 'float32')
 
 def read_audio(audio_path, sample_rate = None, mono = False, dtype = 'float32', __array_wrap__ = None):
-	smax = np.iinfo(np.int16).max
-	f2s_numpy = lambda signal, max = np.float32(smax): np.multiply(signal, max).astype('int16')
-	s2f_numpy = lambda signal, max = np.float32(smax): np.divide(signal, max, dtype = 'float32')
-	
 	signal, sample_rate_ = soundfile.read(audio_path, dtype = 'int16', always_2d = True)
 	signal = signal.T
 	

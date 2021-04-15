@@ -1,3 +1,5 @@
+import audio
+import typing
 import shapes
 import numpy as np
 import torch
@@ -18,7 +20,7 @@ class SimpleVAD:
 	             kernel_size_smooth_silence: int = 4096,
 	             kernel_size_smooth_signal: int = 128,
 	             kernel_size_smooth_speaker: int = 4096,
-	             silence_absolute_threshold: float = 0.05,
+	             silence_absolute_threshold: float = 0.02,
 	             silence_relative_threshold: float = 0.2,
 	             eps: float = 1e-9,
 	             normalization_percentile: float = 0.9):
@@ -73,7 +75,7 @@ class SimpleVAD:
 			bipole = torch.tensor([1, -1], dtype=speaker_id_bipole.dtype, device=speaker_id_bipole.device)
 			speech = (~silence) * (speaker_id_bipole.unsqueeze(0) == bipole.unsqueeze(1))
 		speech = torch.cat([~speech.any(dim = 0).unsqueeze(0), speech])
-		return speech
+		return speech[:, :signal.shape[-1]]
 
 
 class WebrtcVAD:
@@ -142,7 +144,7 @@ class SileroVAD:
 
 	@functools.lru_cache()
 	def _get_model(self):
-		model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model=self.model_name, batch_size=2000)
+		model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model=self.model_name)
 		get_speech_ts, _, _, _, _, _ = utils
 		return model.to(self.device), get_speech_ts
 
@@ -151,7 +153,7 @@ class SileroVAD:
 		model, get_speech_ts = self._get_model()
 		speech_length = torch.zeros_like(signal, dtype = torch.int64)
 		for i, channel_signal in enumerate(signal):
-			intervals = get_speech_ts(channel_signal, model)
+			intervals = get_speech_ts(channel_signal, model, batch_size=2000, min_speech_samples=4000)
 			for interval in intervals:
 				speech_length[i, interval['start']:interval['end']] = torch.arange(0, interval['end'] - interval['start'], dtype = torch.int64)
 
@@ -162,3 +164,34 @@ class SileroVAD:
 			speech = (speech_length == speech_max_length.unsqueeze(0)) & (speech_max_length != 0)
 		speech = torch.cat([~speech.any(dim = 0).unsqueeze(0), speech])
 		return speech
+
+
+class CompositeVAD:
+	def __init__(self, components: typing.List[str], sample_rate: int = 8_000):
+		self.components = []
+		self.sample_rate = sample_rate
+		self.input_type = torch.tensor
+		self.input_dtype = 'float32'
+
+		for vad_type in components:
+			if vad_type == 'simple':
+				self.components.append(SimpleVAD())
+			elif vad_type == 'webrtc':
+				self.components.append(WebrtcVAD(sample_rate=self.sample_rate))
+			elif vad_type == 'silero':
+				self.components.append(SileroVAD(sample_rate=self.sample_rate))
+			else:
+				raise RuntimeError(f'VAD for type {vad_type} not found.')
+
+	def detect(self, signal: shapes.BT, allow_overlap: bool = False) -> shapes.BT:
+		mask = torch.ones((signal.shape[0]+1, signal.shape[1]), dtype=torch.bool)
+		for vad in self.components:
+			if vad.input_type == np.array and vad.input_dtype == 'int16':
+				speaker_masks = vad.detect(audio.f2s_numpy(signal.cpu().numpy()), allow_overlap=allow_overlap)
+			elif vad.input_type == torch.tensor and vad.input_dtype == 'float32':
+				speaker_masks = vad.detect(signal, allow_overlap=allow_overlap).cpu().numpy()
+			else:
+				raise RuntimeError(f'Cannot convert signal for vad {vad}')
+			mask[1:] *= speaker_masks[1:]
+		mask[0] = (~mask[1:]).prod(axis=0)
+		return mask
