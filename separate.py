@@ -9,9 +9,10 @@ def main(args):
 	with open(args.diarization_dataset) as data_file:
 		for line in tqdm(data_file):
 			example = json.loads(line)
-			mask = transcripts.intervals_to_mask(example.pop('intervals'), example['sample_rate'], example['duration']).numpy()
+			mask = transcripts.transcript_to_mask(example.pop('transcript'), example['sample_rate'], example['duration']).numpy()
 			path, ext = os.path.splitext(example['audio_path'])
-			signal, sample_rate = audio.read_audio(path + '_mix' + ext, mono=True)
+			signal, sample_rate = audio.read_audio(example['audio_path'], mono=True)
+			audio.write_audio(path + '_mix' + ext, signal.T, sample_rate)
 			speaker_1 = signal[:, :mask.shape[-1]] * mask[1, :signal.shape[-1]]
 			audio.write_audio(path + '_s1' + ext, speaker_1.T, sample_rate)
 			speaker_2 = signal[:, :mask.shape[-1]] * mask[2, :signal.shape[-1]]

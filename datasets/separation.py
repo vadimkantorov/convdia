@@ -61,6 +61,9 @@ def generate_utterances(audio_path: str, output_path: str, sample_rate: int, vad
 	# speakers ratio in range [0;1] - silence ratio in range [0;1]
 	utterance_scores = n_samples_by_speaker[1:].min(0)/(n_samples_by_speaker[1:].max(0) + 1) - n_samples_by_speaker[0]/utterance_duration
 
+	if signal.dtype == np.float32:
+		signal = audio.f2s_numpy(signal)
+
 	n = 0
 	audio_name, extension = os.path.splitext(os.path.basename(audio_path))
 	while utterance_scores.max() > min_utterance_score:
